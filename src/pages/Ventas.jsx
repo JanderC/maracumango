@@ -1,0 +1,868 @@
+import { useState, useEffect } from 'react';
+import API from '../api/axios';
+import { toast } from 'react-toastify';
+import {
+  RiAddLine, RiSubtractLine, RiDeleteBinLine,
+  RiSearchLine, RiCloseLine, RiCheckLine,
+  RiImageLine, RiHistoryLine,
+  RiShoppingCartLine, RiEyeLine, RiFileList2Line
+} from 'react-icons/ri';
+
+/* ─── Modal genérico ─── */
+const Modal = ({ show, onClose, children, titulo, maxWidth = 520 }) => {
+  if (!show) return null;
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1050,
+      background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+    }}>
+      <div style={{
+        background: '#fff', borderRadius: 20, width: '100%', maxWidth,
+        maxHeight: '92vh', overflowY: 'auto',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.2)'
+      }}>
+        <div style={{
+          padding: '20px 24px', borderBottom: '1px solid #F0F0F0',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          position: 'sticky', top: 0, background: '#fff', zIndex: 1
+        }}>
+          <h5 style={{ fontWeight: 700, margin: 0 }}>{titulo}</h5>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', color: 'var(--texto-suave)' }}>
+            <RiCloseLine />
+          </button>
+        </div>
+        <div style={{ padding: 24 }}>{children}</div>
+      </div>
+    </div>
+  );
+};
+
+/* ─── Card producto en el POS ─── */
+const ProductoCard = ({ prod, onClick }) => (
+  <div
+    onClick={() => onClick(prod)}
+    style={{
+      background: '#fff', borderRadius: 14, overflow: 'hidden',
+      cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '2px solid transparent'
+    }}
+    onMouseEnter={e => {
+      e.currentTarget.style.transform = 'translateY(-3px)';
+      e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.12)';
+      e.currentTarget.style.borderColor = 'var(--verde)';
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.transform = 'translateY(0)';
+      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
+      e.currentTarget.style.borderColor = 'transparent';
+    }}
+  >
+    <div style={{ height: 100, background: 'var(--crema)', position: 'relative', overflow: 'hidden' }}>
+      {prod.imagen_url
+        ? <img src={prod.imagen_url} alt={prod.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <RiImageLine style={{ fontSize: 28, color: '#BDBDBD' }} />
+          </div>
+      }
+      {prod.tiene_toppings && (
+        <span style={{
+          position: 'absolute', top: 6, left: 6,
+          background: 'var(--naranja)', color: '#fff',
+          borderRadius: 20, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700
+        }}>+ Extras</span>
+      )}
+    </div>
+    <div style={{ padding: '10px 12px' }}>
+      <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: 2, lineHeight: 1.2 }}>{prod.nombre}</div>
+      <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--verde)' }}>
+        ${parseFloat(prod.precio_final_usd).toFixed(2)}
+      </div>
+    </div>
+  </div>
+);
+
+/* ─── Modal toppings ─── */
+const ModalToppings = ({ producto, onAgregar, onClose }) => {
+  const [seleccionados, setSeleccionados] = useState([]);
+  if (!producto) return null;
+  const toggle = (t) => setSeleccionados(s => s.find(x => x.id === t.id) ? s.filter(x => x.id !== t.id) : [...s, t]);
+  const extra = seleccionados.reduce((a, t) => a + parseFloat(t.precio_usd), 0);
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1060,
+      background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+    }}>
+      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 400, padding: 28 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+          <h5 style={{ fontWeight: 700, margin: 0 }}>Extras — {producto.nombre}</h5>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer' }}><RiCloseLine /></button>
+        </div>
+        <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginBottom: 14 }}>Selecciona los adicionales</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+          {producto.toppings?.map(t => (
+            <button key={t.id} onClick={() => toggle(t)} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '11px 14px', borderRadius: 12, border: '2px solid',
+              borderColor: seleccionados.find(x => x.id === t.id) ? 'var(--naranja)' : '#E0E0E0',
+              background: seleccionados.find(x => x.id === t.id) ? '#FFF3E0' : '#fff',
+              cursor: 'pointer', fontFamily: 'Poppins', textAlign: 'left'
+            }}>
+              <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>{t.nombre}</span>
+              <span style={{ fontWeight: 700, color: 'var(--naranja)', fontSize: '0.85rem' }}>
+                {parseFloat(t.precio_usd) > 0 ? `+$${parseFloat(t.precio_usd).toFixed(2)}` : 'Gratis'}
+              </span>
+            </button>
+          ))}
+        </div>
+        <button className="btn-verde" style={{ width: '100%', padding: 13 }}
+          onClick={() => onAgregar(producto, seleccionados)}>
+          Añadir · ${(parseFloat(producto.precio_final_usd) + extra).toFixed(2)}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* ─── Modal ticket ─── */
+const ModalTicket = ({ show, venta, onClose }) => {
+  if (!show || !venta) return null;
+  const simbolo = venta.moneda_pago === 'USD' ? '$' : venta.moneda_pago === 'BS' ? 'Bs.' : 'COP$';
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1070,
+      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+    }}>
+      <div style={{
+        background: '#fff', borderRadius: 20, width: '100%', maxWidth: 400,
+        padding: '32px 28px', textAlign: 'center',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.25)'
+      }}>
+        <div style={{ fontSize: 52, marginBottom: 8 }}>✅</div>
+        <h4 style={{ fontWeight: 800, color: 'var(--verde)', marginBottom: 4 }}>¡Venta registrada!</h4>
+        <p style={{ color: 'var(--texto-suave)', fontSize: '0.85rem', marginBottom: 24 }}>Venta #{venta.id}</p>
+
+        <div style={{ background: 'var(--crema)', borderRadius: 14, padding: '16px 20px', marginBottom: 20, textAlign: 'left' }}>
+          {venta.items?.map((item, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '0.85rem' }}>
+              <div>
+                <span style={{ fontWeight: 600 }}>{item.producto_nombre}</span>
+                <span style={{ color: 'var(--texto-suave)' }}> x{item.cantidad}</span>
+                {item.toppings?.length > 0 && (
+                  <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)' }}>
+                    + {item.toppings.map(t => t.topping_nombre).join(', ')}
+                  </div>
+                )}
+              </div>
+              <span style={{ fontWeight: 700 }}>${parseFloat(item.subtotal_usd).toFixed(2)}</span>
+            </div>
+          ))}
+          <div style={{ borderTop: '1px dashed #E0E0E0', marginTop: 10, paddingTop: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+              <span>Total USD</span>
+              <span style={{ color: 'var(--verde)' }}>${parseFloat(venta.total_usd).toFixed(2)}</span>
+            </div>
+            {venta.moneda_pago !== 'USD' && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginTop: 4 }}>
+                <span>Total {venta.moneda_pago}</span>
+                <span style={{ color: 'var(--naranja)' }}>{simbolo} {parseFloat(venta.total_pagado).toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginBottom: 24, fontSize: '0.82rem' }}>
+          <div style={{ flex: 1, padding: 10, background: '#E8F5E9', borderRadius: 10 }}>
+            <div style={{ color: 'var(--texto-suave)' }}>Pago</div>
+            <div style={{ fontWeight: 700, color: 'var(--verde)', textTransform: 'capitalize' }}>{venta.tipo_pago}</div>
+          </div>
+          <div style={{ flex: 1, padding: 10, background: '#FFF3E0', borderRadius: 10 }}>
+            <div style={{ color: 'var(--texto-suave)' }}>Moneda</div>
+            <div style={{ fontWeight: 700, color: 'var(--naranja)' }}>{venta.moneda_pago}</div>
+          </div>
+          {venta.nombre_banco && (
+            <div style={{ flex: 1, padding: 10, background: '#E3F2FD', borderRadius: 10 }}>
+              <div style={{ color: 'var(--texto-suave)' }}>Banco</div>
+              <div style={{ fontWeight: 700, color: '#1565C0', fontSize: '0.75rem' }}>{venta.nombre_banco}</div>
+            </div>
+          )}
+        </div>
+        <button className="btn-verde" style={{ width: '100%', padding: 13 }} onClick={onClose}>
+          Nueva venta
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* ════════════════════════════════════
+   PÁGINA PRINCIPAL
+═══════════════════════════════════ */
+export default function Ventas() {
+  const [vista, setVista] = useState('pos'); // pos | historial
+
+  /* POS */
+  const [productos, setProductos] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+  const [tasas, setTasas] = useState([]);
+  const [cuentas, setCuentas] = useState([]);
+  const [busqueda, setBusqueda] = useState('');
+  const [catActiva, setCatActiva] = useState('');
+  const [carrito, setCarrito] = useState([]);
+  const [modalToppings, setModalToppings] = useState(null);
+  const [moneda, setMoneda] = useState('USD');
+  const [tasa, setTasa] = useState('');
+  const [tipoPago, setTipoPago] = useState('efectivo');
+  const [cuentaId, setCuentaId] = useState('');
+  const [notas, setNotas] = useState('');
+  const [procesando, setProcesando] = useState(false);
+  const [modalTicket, setModalTicket] = useState(false);
+  const [ventaRealizada, setVentaRealizada] = useState(null);
+  const [cargandoPOS, setCargandoPOS] = useState(true);
+
+  /* Historial */
+  const [ventas, setVentas] = useState([]);
+  const [cargandoHist, setCargandoHist] = useState(false);
+  const [filtros, setFiltros] = useState({ fecha_inicio: '', fecha_fin: '', moneda: '', tipo_pago: '' });
+  const [ventaDetalle, setVentaDetalle] = useState(null);
+  const [modalDetalle, setModalDetalle] = useState(false);
+
+  /* ── Cargar datos POS ── */
+  const cargarPOS = async () => {
+    setCargandoPOS(true);
+    try {
+      const [r1, r2, r3] = await Promise.all([
+        API.get('/productos/activos'),
+        API.get('/categorias'),
+        API.get('/tasas-cambio')
+      ]);
+      setProductos(r1.data.productos);
+      setCategorias(r2.data.categorias);
+      setTasas(r3.data.tasas);
+      const ultimaBS = r3.data.tasas.find(t => t.moneda === 'BS');
+      if (ultimaBS) setTasa(ultimaBS.tasa_por_usd);
+    } catch { toast.error('Error cargando productos'); }
+    finally { setCargandoPOS(false); }
+  };
+
+  /* ── Cargar cuentas al cambiar moneda/tipo ── */
+  useEffect(() => {
+    if (tipoPago === 'transferencia') {
+      API.get(`/cuentas-bancarias/moneda/${moneda}`)
+        .then(r => { setCuentas(r.data.cuentas); setCuentaId(''); })
+        .catch(() => setCuentas([]));
+    }
+  }, [tipoPago, moneda]);
+
+  /* ── Cargar historial ── */
+  const cargarHistorial = async () => {
+    setCargandoHist(true);
+    try {
+      const params = new URLSearchParams();
+      if (filtros.fecha_inicio) params.append('fecha_inicio', filtros.fecha_inicio);
+      if (filtros.fecha_fin) params.append('fecha_fin', filtros.fecha_fin);
+      if (filtros.moneda) params.append('moneda', filtros.moneda);
+      if (filtros.tipo_pago) params.append('tipo_pago', filtros.tipo_pago);
+      const { data } = await API.get(`/ventas?${params}`);
+      setVentas(data.ventas);
+    } catch { toast.error('Error cargando historial'); }
+    finally { setCargandoHist(false); }
+  };
+
+  useEffect(() => { cargarPOS(); }, []);
+  useEffect(() => { if (vista === 'historial') cargarHistorial(); }, [vista]);
+
+  /* ── POS: agregar producto ── */
+  const clickProducto = async (prod) => {
+    if (prod.tiene_toppings) {
+      try {
+        const { data } = await API.get(`/productos/${prod.id}`);
+        setModalToppings(data.producto);
+      } catch { toast.error('Error cargando extras'); }
+    } else {
+      agregarItem(prod, []);
+    }
+  };
+
+  const agregarItem = (prod, tops) => {
+    setCarrito(c => {
+      const key = `${prod.id}-${tops.map(t => t.id).join(',')}`;
+      const idx = c.findIndex(i => i._key === key);
+      if (idx >= 0) {
+        const n = [...c]; n[idx].cantidad += 1; return n;
+      }
+      return [...c, { ...prod, cantidad: 1, toppingsSeleccionados: tops, _key: key }];
+    });
+    setModalToppings(null);
+    toast.success(`${prod.nombre} añadido`, { autoClose: 800 });
+  };
+
+  const cambiarCantidad = (idx, delta) => {
+    setCarrito(c => {
+      const n = [...c];
+      n[idx].cantidad += delta;
+      if (n[idx].cantidad <= 0) n.splice(idx, 1);
+      return n;
+    });
+  };
+
+  const quitarItem = (idx) => setCarrito(c => c.filter((_, i) => i !== idx));
+
+  /* ── Totales ── */
+  const totalUSD = carrito.reduce((acc, item) => {
+    const base = parseFloat(item.precio_final_usd) * item.cantidad;
+    const tops = (item.toppingsSeleccionados || []).reduce((a, t) => a + parseFloat(t.precio_usd), 0) * item.cantidad;
+    return acc + base + tops;
+  }, 0);
+
+  const totalConvertido = () => {
+    if (moneda === 'USD') return totalUSD.toFixed(2);
+    return (totalUSD * parseFloat(tasa || 1)).toFixed(2);
+  };
+
+  const simbolo = moneda === 'USD' ? '$' : moneda === 'BS' ? 'Bs.' : 'COP$';
+
+  /* ── Confirmar venta ── */
+  const confirmarVenta = async () => {
+    if (carrito.length === 0) { toast.error('El carrito está vacío'); return; }
+    if (moneda !== 'USD' && !tasa) { toast.error('Ingresa la tasa de cambio'); return; }
+    if (tipoPago === 'transferencia' && !cuentaId) { toast.error('Selecciona una cuenta bancaria'); return; }
+
+    setProcesando(true);
+    try {
+      const { data } = await API.post('/ventas', {
+        moneda_pago: moneda,
+        tipo_pago: tipoPago,
+        cuenta_bancaria_id: cuentaId || null,
+        tasa_cambio_usada: moneda !== 'USD' ? tasa : null,
+        notas,
+        items: carrito.map(i => ({
+          producto_id: i.id,
+          cantidad: i.cantidad,
+          toppings_ids: (i.toppingsSeleccionados || []).map(t => t.id)
+        }))
+      });
+      setVentaRealizada(data.venta);
+      setCarrito([]);
+      setNotas('');
+      setTipoPago('efectivo');
+      setCuentaId('');
+      setModalTicket(true);
+    } catch (err) {
+      toast.error(err.response?.data?.mensaje || 'Error procesando venta');
+    } finally { setProcesando(false); }
+  };
+
+  /* ── Ver detalle venta ── */
+  const verDetalle = async (id) => {
+    try {
+      const { data } = await API.get(`/ventas/${id}`);
+      setVentaDetalle(data.venta);
+      setModalDetalle(true);
+    } catch { toast.error('Error cargando detalle'); }
+  };
+
+  const anular = async (id) => {
+    const motivo = window.prompt('Motivo de anulación:');
+    if (!motivo) return;
+    try {
+      await API.patch(`/ventas/${id}/anular`, { motivo });
+      toast.success('Venta anulada');
+      cargarHistorial();
+    } catch (err) { toast.error(err.response?.data?.mensaje || 'Error anulando'); }
+  };
+
+  const filtradosPOS = productos.filter(p => {
+    const mb = p.nombre.toLowerCase().includes(busqueda.toLowerCase());
+    const mc = !catActiva || p.categoria_id === parseInt(catActiva);
+    return mb && mc;
+  });
+
+  /* ════ RENDER ════ */
+  return (
+    <div>
+      {/* Header + tabs */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 2 }}>Ventas 🧾</h1>
+          <p style={{ color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
+            {vista === 'pos' ? 'Punto de venta — arma el pedido del cliente' : 'Historial de transacciones'}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[
+            { v: 'pos', icon: <RiShoppingCartLine />, label: 'Punto de venta' },
+            { v: 'historial', icon: <RiHistoryLine />, label: 'Historial' }
+          ].map(tab => (
+            <button key={tab.v} onClick={() => setVista(tab.v)} style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '9px 18px', borderRadius: 12, border: 'none',
+              background: vista === tab.v ? 'var(--verde)' : '#fff',
+              color: vista === tab.v ? '#fff' : 'var(--texto-suave)',
+              fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.85rem',
+              cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+              transition: 'all 0.2s'
+            }}>
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ══════════ VISTA POS ══════════ */}
+      {vista === 'pos' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }} className="pos-grid">
+
+          {/* ── Panel izquierdo: productos ── */}
+          <div>
+            {/* Búsqueda + categorías */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ position: 'relative', marginBottom: 12 }}>
+                <RiSearchLine style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--texto-suave)' }} />
+                <input className="input-mm" placeholder="Buscar producto..." value={busqueda}
+                  onChange={e => setBusqueda(e.target.value)} style={{ paddingLeft: 40 }} />
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={() => setCatActiva('')} style={{
+                  padding: '6px 14px', borderRadius: 20, border: '2px solid',
+                  borderColor: !catActiva ? 'var(--verde)' : '#E0E0E0',
+                  background: !catActiva ? '#E8F5E9' : '#fff',
+                  color: !catActiva ? 'var(--verde)' : 'var(--texto-suave)',
+                  fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer'
+                }}>Todos</button>
+                {categorias.map(c => (
+                  <button key={c.id} onClick={() => setCatActiva(c.id)} style={{
+                    padding: '6px 14px', borderRadius: 20, border: '2px solid',
+                    borderColor: catActiva === c.id ? 'var(--verde)' : '#E0E0E0',
+                    background: catActiva === c.id ? '#E8F5E9' : '#fff',
+                    color: catActiva === c.id ? 'var(--verde)' : 'var(--texto-suave)',
+                    fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer'
+                  }}>{c.nombre}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Grid productos */}
+            {cargandoPOS ? (
+              <div style={{ textAlign: 'center', padding: 60 }}>
+                <div className="spinner-border" style={{ color: 'var(--verde)' }} />
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+                {filtradosPOS.map(p => (
+                  <ProductoCard key={p.id} prod={p} onClick={clickProducto} />
+                ))}
+                {filtradosPOS.length === 0 && (
+                  <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 48, color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
+                    Sin productos
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ── Panel derecho: carrito + pago ── */}
+          <div style={{
+            background: '#fff', borderRadius: 20,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+            position: 'sticky', top: 80,
+            maxHeight: 'calc(100vh - 100px)', overflowY: 'auto'
+          }}>
+            {/* Header carrito */}
+            <div style={{
+              padding: '18px 20px', borderBottom: '1px solid #F0F0F0',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+            }}>
+              <div style={{ fontWeight: 700, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <RiShoppingCartLine style={{ color: 'var(--verde)' }} />
+                Pedido del cliente
+              </div>
+              {carrito.length > 0 && (
+                <button onClick={() => setCarrito([])} style={{
+                  background: '#FFEBEE', border: 'none', borderRadius: 8,
+                  padding: '4px 10px', color: '#C62828', fontSize: '0.75rem',
+                  fontFamily: 'Poppins', fontWeight: 600, cursor: 'pointer'
+                }}>Limpiar</button>
+              )}
+            </div>
+
+            {/* Items carrito */}
+            <div style={{ padding: '12px 20px', minHeight: 120 }}>
+              {carrito.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
+                  <RiShoppingCartLine style={{ fontSize: 32, marginBottom: 8, display: 'block', margin: '0 auto 8px' }} />
+                  Selecciona productos del menú
+                </div>
+              ) : carrito.map((item, idx) => {
+                const extras = (item.toppingsSeleccionados || []).reduce((a, t) => a + parseFloat(t.precio_usd), 0);
+                const subtotal = (parseFloat(item.precio_final_usd) + extras) * item.cantidad;
+                return (
+                  <div key={idx} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid #F5F5F5' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{item.nombre}</div>
+                        {item.toppingsSeleccionados?.length > 0 && (
+                          <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)' }}>
+                            + {item.toppingsSeleccionados.map(t => t.nombre).join(', ')}
+                          </div>
+                        )}
+                      </div>
+                      <button onClick={() => quitarItem(idx)} style={{ background: 'none', border: 'none', color: '#BDBDBD', cursor: 'pointer', fontSize: '1rem', padding: 0 }}>
+                        <RiDeleteBinLine />
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button onClick={() => cambiarCantidad(idx, -1)} style={{
+                          width: 28, height: 28, borderRadius: '50%', border: '2px solid #E0E0E0',
+                          background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem'
+                        }}><RiSubtractLine /></button>
+                        <span style={{ fontWeight: 700, fontSize: '0.95rem', minWidth: 20, textAlign: 'center' }}>{item.cantidad}</span>
+                        <button onClick={() => cambiarCantidad(idx, 1)} style={{
+                          width: 28, height: 28, borderRadius: '50%', border: 'none',
+                          background: 'var(--verde)', color: '#fff', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem'
+                        }}><RiAddLine /></button>
+                      </div>
+                      <span style={{ fontWeight: 700, color: 'var(--verde)', fontSize: '0.9rem' }}>${subtotal.toFixed(2)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Configuración de pago */}
+            {carrito.length > 0 && (
+              <div style={{ padding: '0 20px 20px' }}>
+
+                {/* Moneda */}
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 8 }}>MONEDA DE PAGO</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                    {['USD', 'BS', 'COP'].map(m => (
+                      <button key={m} onClick={() => setMoneda(m)} style={{
+                        padding: '8px 0', borderRadius: 10, border: '2px solid',
+                        borderColor: moneda === m ? 'var(--verde)' : '#E0E0E0',
+                        background: moneda === m ? '#E8F5E9' : '#fff',
+                        color: moneda === m ? 'var(--verde)' : 'var(--texto-suave)',
+                        fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer'
+                      }}>
+                        {m === 'USD' ? '💵' : m === 'BS' ? '🇻🇪' : '🇨🇴'} {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tasa */}
+                {moneda !== 'USD' && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 6 }}>TASA ({moneda}/USD)</div>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                      {tasas.filter(t => t.moneda === moneda).slice(0, 2).map((t, i) => (
+                        <button key={i} onClick={() => setTasa(t.tasa_por_usd)} style={{
+                          padding: '4px 10px', borderRadius: 20, border: '2px solid',
+                          borderColor: parseFloat(tasa) === parseFloat(t.tasa_por_usd) ? 'var(--verde)' : '#E0E0E0',
+                          background: parseFloat(tasa) === parseFloat(t.tasa_por_usd) ? '#E8F5E9' : '#fff',
+                          color: parseFloat(tasa) === parseFloat(t.tasa_por_usd) ? 'var(--verde)' : 'var(--texto-suave)',
+                          fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.74rem', cursor: 'pointer'
+                        }}>
+                          {parseFloat(t.tasa_por_usd).toLocaleString()} {i === 0 ? '⭐' : ''}
+                        </button>
+                      ))}
+                    </div>
+                    <input className="input-mm" type="number" step="0.01"
+                      placeholder={`Tasa manual...`} value={tasa}
+                      onChange={e => setTasa(e.target.value)}
+                      style={{ fontSize: '0.85rem', padding: '10px 14px' }} />
+                  </div>
+                )}
+
+                {/* Tipo pago */}
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 8 }}>TIPO DE PAGO</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    {[{ v: 'efectivo', label: '💵 Efectivo' }, { v: 'transferencia', label: '🏦 Transfer.' }].map(t => (
+                      <button key={t.v} onClick={() => setTipoPago(t.v)} style={{
+                        padding: '9px 0', borderRadius: 10, border: '2px solid',
+                        borderColor: tipoPago === t.v ? 'var(--verde)' : '#E0E0E0',
+                        background: tipoPago === t.v ? '#E8F5E9' : '#fff',
+                        color: tipoPago === t.v ? 'var(--verde)' : 'var(--texto-suave)',
+                        fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer'
+                      }}>{t.label}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Cuenta bancaria */}
+                {tipoPago === 'transferencia' && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 8 }}>
+                      CUENTA DESTINO ({moneda})
+                    </div>
+                    {cuentas.length === 0 ? (
+                      <div style={{ padding: '10px 14px', background: '#FFF3E0', borderRadius: 10, fontSize: '0.78rem', color: '#E65100' }}>
+                        No hay cuentas activas para {moneda}
+                      </div>
+                    ) : cuentas.map(c => (
+                      <button key={c.id} onClick={() => setCuentaId(c.id)} style={{
+                        width: '100%', padding: '10px 14px', borderRadius: 10,
+                        border: '2px solid', marginBottom: 6,
+                        borderColor: cuentaId === c.id ? 'var(--verde)' : '#E0E0E0',
+                        background: cuentaId === c.id ? '#E8F5E9' : '#fff',
+                        textAlign: 'left', cursor: 'pointer', fontFamily: 'Poppins'
+                      }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.82rem', color: cuentaId === c.id ? 'var(--verde)' : 'var(--texto)' }}>{c.nombre_banco}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)' }}>
+                          {c.titular_cuenta}{c.numero_cuenta ? ` · ${c.numero_cuenta}` : ''}{c.telefono ? ` · ${c.telefono}` : ''}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Notas */}
+                <div style={{ marginBottom: 16 }}>
+                  <textarea className="input-mm" rows={2} placeholder="Notas del pedido..." value={notas}
+                    onChange={e => setNotas(e.target.value)} style={{ resize: 'none', fontSize: '0.85rem', padding: '10px 14px' }} />
+                </div>
+
+                {/* Total */}
+                <div style={{ background: 'var(--verde)', borderRadius: 14, padding: '14px 18px', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.74rem' }}>Total a cobrar</div>
+                      <div style={{ color: '#fff', fontWeight: 800, fontSize: '1.4rem' }}>
+                        {simbolo} {Number(totalConvertido()).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.72rem' }}>USD</div>
+                      <div style={{ color: 'var(--naranja-claro)', fontWeight: 700 }}>${totalUSD.toFixed(2)}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={confirmarVenta}
+                  disabled={procesando}
+                  style={{
+                    width: '100%', padding: '13px',
+                    background: procesando ? '#9E9E9E' : 'var(--naranja)',
+                    color: '#fff', border: 'none', borderRadius: 14,
+                    fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.95rem',
+                    cursor: procesando ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+                  }}
+                >
+                  {procesando ? <span className="spinner-border spinner-border-sm" /> : <RiCheckLine />}
+                  {procesando ? 'Procesando...' : 'Registrar venta'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════ VISTA HISTORIAL ══════════ */}
+      {vista === 'historial' && (
+        <div>
+          {/* Filtros */}
+          <div className="card-mm" style={{ marginBottom: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, alignItems: 'end' }}>
+              <div>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: 6, display: 'block', color: 'var(--texto-suave)' }}>DESDE</label>
+                <input className="input-mm" type="date" value={filtros.fecha_inicio}
+                  onChange={e => setFiltros({ ...filtros, fecha_inicio: e.target.value })} />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: 6, display: 'block', color: 'var(--texto-suave)' }}>HASTA</label>
+                <input className="input-mm" type="date" value={filtros.fecha_fin}
+                  onChange={e => setFiltros({ ...filtros, fecha_fin: e.target.value })} />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: 6, display: 'block', color: 'var(--texto-suave)' }}>MONEDA</label>
+                <select className="input-mm" value={filtros.moneda}
+                  onChange={e => setFiltros({ ...filtros, moneda: e.target.value })}>
+                  <option value="">Todas</option>
+                  <option value="USD">USD</option>
+                  <option value="BS">BS</option>
+                  <option value="COP">COP</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: 6, display: 'block', color: 'var(--texto-suave)' }}>TIPO PAGO</label>
+                <select className="input-mm" value={filtros.tipo_pago}
+                  onChange={e => setFiltros({ ...filtros, tipo_pago: e.target.value })}>
+                  <option value="">Todos</option>
+                  <option value="efectivo">Efectivo</option>
+                  <option value="transferencia">Transferencia</option>
+                </select>
+              </div>
+              <button className="btn-verde" onClick={cargarHistorial} style={{ padding: '12px' }}>
+                Filtrar
+              </button>
+            </div>
+          </div>
+
+          {/* Tabla historial */}
+          {cargandoHist ? (
+            <div style={{ textAlign: 'center', padding: 60 }}>
+              <div className="spinner-border" style={{ color: 'var(--verde)' }} />
+            </div>
+          ) : (
+            <div className="card-mm" style={{ padding: 0, overflow: 'hidden' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--crema)', borderBottom: '2px solid #F0F0F0' }}>
+                      {['#', 'Fecha', 'Cajero', 'Total USD', 'Total Pagado', 'Moneda', 'Tipo Pago', 'Banco', 'Acciones'].map(h => (
+                        <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 600, fontSize: '0.78rem', color: 'var(--texto-suave)', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ventas.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} style={{ textAlign: 'center', padding: 48, color: 'var(--texto-suave)' }}>
+                          <RiFileList2Line style={{ fontSize: 36, display: 'block', margin: '0 auto 8px' }} />
+                          Sin ventas en este período
+                        </td>
+                      </tr>
+                    ) : ventas.map(v => (
+                      <tr key={v.id} style={{ borderBottom: '1px solid #F9F9F9' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--naranja)' }}>#{v.id}</td>
+                        <td style={{ padding: '12px 16px', color: 'var(--texto-suave)', whiteSpace: 'nowrap' }}>
+                          {new Date(v.creado_en).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td style={{ padding: '12px 16px', fontWeight: 600 }}>{v.cajero}</td>
+                        <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--verde)' }}>${parseFloat(v.total_usd).toFixed(2)}</td>
+                        <td style={{ padding: '12px 16px', fontWeight: 600 }}>
+                          {v.moneda_pago === 'USD' ? '$' : v.moneda_pago === 'BS' ? 'Bs.' : 'COP$'} {parseFloat(v.total_pagado).toLocaleString()}
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{
+                            borderRadius: 20, padding: '3px 10px', fontSize: '0.75rem', fontWeight: 700,
+                            background: v.moneda_pago === 'USD' ? '#E8F5E9' : v.moneda_pago === 'BS' ? '#E3F2FD' : '#FFF3E0',
+                            color: v.moneda_pago === 'USD' ? '#1B5E20' : v.moneda_pago === 'BS' ? '#1565C0' : '#E65100'
+                          }}>{v.moneda_pago}</span>
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <span style={{
+                            borderRadius: 20, padding: '3px 10px', fontSize: '0.75rem', fontWeight: 700,
+                            background: v.tipo_pago === 'anulada' ? '#FFEBEE' : v.tipo_pago === 'efectivo' ? '#F3E5F5' : '#E8F5E9',
+                            color: v.tipo_pago === 'anulada' ? '#C62828' : v.tipo_pago === 'efectivo' ? '#6A1B9A' : '#1B5E20',
+                            textTransform: 'capitalize'
+                          }}>{v.tipo_pago}</span>
+                        </td>
+                        <td style={{ padding: '12px 16px', color: 'var(--texto-suave)', fontSize: '0.8rem' }}>
+                          {v.nombre_banco || '—'}
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button onClick={() => verDetalle(v.id)} title="Ver detalle" style={{ background: '#E8F5E9', border: 'none', borderRadius: 8, padding: '6px 9px', color: '#1B5E20', cursor: 'pointer', fontSize: '0.95rem' }}>
+                              <RiEyeLine />
+                            </button>
+                            {v.tipo_pago !== 'anulada' && (
+                              <button onClick={() => anular(v.id)} title="Anular" style={{ background: '#FFEBEE', border: 'none', borderRadius: 8, padding: '6px 9px', color: '#C62828', cursor: 'pointer', fontSize: '0.95rem' }}>
+                                <RiCloseLine />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal toppings POS */}
+      <ModalToppings
+        producto={modalToppings}
+        onAgregar={agregarItem}
+        onClose={() => setModalToppings(null)}
+      />
+
+      {/* Ticket */}
+      <ModalTicket
+        show={modalTicket}
+        venta={ventaRealizada}
+        onClose={() => setModalTicket(false)}
+      />
+
+      {/* Modal detalle venta */}
+      <Modal show={modalDetalle} onClose={() => setModalDetalle(false)} titulo={`Detalle venta #${ventaDetalle?.id}`} maxWidth={480}>
+        {ventaDetalle && (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+              {[
+                { label: 'Cajero', valor: ventaDetalle.cajero },
+                { label: 'Fecha', valor: new Date(ventaDetalle.creado_en).toLocaleString('es-VE') },
+                { label: 'Tipo pago', valor: ventaDetalle.tipo_pago },
+                { label: 'Moneda', valor: ventaDetalle.moneda_pago },
+                { label: 'Banco', valor: ventaDetalle.nombre_banco || '—' },
+                { label: 'Tasa usada', valor: ventaDetalle.tasa_cambio_usada ? parseFloat(ventaDetalle.tasa_cambio_usada).toLocaleString() : '—' },
+              ].map(d => (
+                <div key={d.label} style={{ background: 'var(--crema)', borderRadius: 10, padding: '10px 14px' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)', fontWeight: 600 }}>{d.label.toUpperCase()}</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem', textTransform: 'capitalize' }}>{d.valor}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 10 }}>PRODUCTOS</div>
+              {ventaDetalle.items?.map((item, i) => (
+                <div key={i} style={{ padding: '10px 14px', background: '#F9F9F9', borderRadius: 10, marginBottom: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>{item.producto_nombre} x{item.cantidad}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--verde)' }}>${parseFloat(item.subtotal_usd).toFixed(2)}</span>
+                  </div>
+                  {item.toppings?.length > 0 && (
+                    <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)' }}>
+                      Extras: {item.toppings.map(t => t.topping_nombre).join(', ')}
+                    </div>
+                  )}
+                  <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)', marginTop: 2 }}>
+                    Ganancia: <span style={{ color: '#2E7D32', fontWeight: 600 }}>${parseFloat(item.ganancia_usd).toFixed(2)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background: 'var(--verde)', borderRadius: 14, padding: '16px 20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff', fontWeight: 700, marginBottom: 6 }}>
+                <span>Total USD</span>
+                <span>${parseFloat(ventaDetalle.total_usd).toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--naranja-claro)', fontWeight: 700 }}>
+                <span>Total {ventaDetalle.moneda_pago}</span>
+                <span>{ventaDetalle.moneda_pago === 'USD' ? '$' : ventaDetalle.moneda_pago === 'BS' ? 'Bs.' : 'COP$'} {parseFloat(ventaDetalle.total_pagado).toLocaleString()}</span>
+              </div>
+            </div>
+
+            {ventaDetalle.notas && (
+              <div style={{ marginTop: 14, padding: '10px 14px', background: '#FFF3E0', borderRadius: 10, fontSize: '0.82rem' }}>
+                📝 {ventaDetalle.notas}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <style>{`
+        @media (max-width: 900px) {
+          .pos-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+    </div>
+  );
+}
