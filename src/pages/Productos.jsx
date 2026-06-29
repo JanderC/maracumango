@@ -50,7 +50,7 @@ export default function Productos() {
   const [categorias, setCategorias] = useState([]);
   const [inventario, setInventario] = useState([]);
   const [toppings, setToppings] = useState([]);
-  const [busqueda, setBusqueda] = useState([]);
+  const [busqueda, setBusqueda] = useState('');
   const [cargando, setCargando] = useState(true);
   const [modalForm, setModalForm] = useState(false);
   const [productoSel, setProductoSel] = useState(null);
