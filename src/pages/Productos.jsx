@@ -41,7 +41,7 @@ const Modal = ({ show, onClose, children, titulo }) => {
 
 const formVacio = {
   nombre: '', descripcion: '', categoria_id: '', inventario_id: '',
-  costo_unitario: '', porcentaje_ganancia: '', precio_manual: '',
+  costo_unitario_cop: '', porcentaje_ganancia: '', precio_manual_cop: '',
   usar_precio_manual: false, tiene_toppings: false, toppings_ids: []
 };
 
@@ -58,28 +58,41 @@ export default function Productos() {
   const [imagen, setImagen] = useState(null);
   const [previstaImagen, setPrevistaImagen] = useState(null);
   const [guardando, setGuardando] = useState(false);
+  const [tasaCop, setTasaCop] = useState(null); // { tasa_por_usd, actualizado_en, ... }
 
-  const precioCalculado = () => {
-    if (form.usar_precio_manual && form.precio_manual) return parseFloat(form.precio_manual).toFixed(2);
-    if (!form.costo_unitario) return '0.00';
-    const c = parseFloat(form.costo_unitario);
+  // Precio final en COP (manual o calculado por porcentaje de ganancia)
+  const precioCalculadoCop = () => {
+    if (form.usar_precio_manual && form.precio_manual_cop) return parseFloat(form.precio_manual_cop).toFixed(2);
+    if (!form.costo_unitario_cop) return '0.00';
+    const c = parseFloat(form.costo_unitario_cop);
     const p = parseFloat(form.porcentaje_ganancia) || 0;
     return (c + (c * p / 100)).toFixed(2);
+  };
+
+  // Estimado en USD usando la tasa COP vigente (solo referencia visual;
+  // el valor que realmente se congela lo calcula el backend al guardar)
+  const precioEstimadoUsd = () => {
+    if (!tasaCop?.tasa_por_usd) return null;
+    const cop = parseFloat(precioCalculadoCop());
+    if (!cop) return null;
+    return (cop / parseFloat(tasaCop.tasa_por_usd)).toFixed(2);
   };
 
   const cargar = async () => {
     setCargando(true);
     try {
-      const [r1, r2, r3, r4] = await Promise.all([
+      const [r1, r2, r3, r4, r5] = await Promise.all([
         API.get('/productos'),
         API.get('/categorias'),
         API.get('/inventario'),
-        API.get('/toppings')
+        API.get('/toppings'),
+        API.get('/tasas-cambio/activa/COP').catch(() => null)
       ]);
       setProductos(r1.data.productos);
       setCategorias(r2.data.categorias);
       setInventario(r3.data.inventario);
       setToppings(r4.data.toppings);
+      setTasaCop(r5?.data?.tasa || null);
     } catch { toast.error('Error cargando productos'); }
     finally { setCargando(false); }
   };
@@ -104,9 +117,9 @@ export default function Productos() {
         descripcion: p.descripcion || '',
         categoria_id: p.categoria_id || '',
         inventario_id: p.inventario_id || '',
-        costo_unitario: p.costo_unitario,
+        costo_unitario_cop: p.costo_unitario_cop,
         porcentaje_ganancia: p.porcentaje_ganancia || '',
-        precio_manual: p.precio_manual || '',
+        precio_manual_cop: p.precio_manual_cop || '',
         usar_precio_manual: p.usar_precio_manual,
         tiene_toppings: p.tiene_toppings,
         toppings_ids: p.toppings?.map(t => t.id) || []
@@ -135,8 +148,12 @@ export default function Productos() {
   };
 
   const guardar = async () => {
-    if (!form.nombre || !form.costo_unitario) {
-      toast.error('Nombre y costo unitario son requeridos');
+    if (!form.nombre || !form.costo_unitario_cop) {
+      toast.error('Nombre y costo unitario (COP) son requeridos');
+      return;
+    }
+    if (!tasaCop) {
+      toast.error('Debes cargar una tasa COP antes de crear productos');
       return;
     }
     setGuardando(true);
@@ -275,11 +292,20 @@ export default function Productos() {
                 {/* Precios */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--texto-suave)' }}>Costo</span>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>${parseFloat(prod.costo_unitario).toFixed(2)}</span>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>
+                    ${Number(prod.costo_unitario_cop).toLocaleString('es-CO')} COP
+                  </span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--texto-suave)' }}>Precio venta</span>
-                  <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--verde)' }}>${parseFloat(prod.precio_final_usd).toFixed(2)}</span>
+                  <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--verde)' }}>
+                    ${Number(prod.precio_final_cop).toLocaleString('es-CO')} COP
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--texto-suave)' }}>
+                    ≈ ${parseFloat(prod.precio_final_usd).toFixed(2)} USD
+                  </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--texto-suave)' }}>Ganancia</span>
@@ -367,8 +393,8 @@ export default function Productos() {
 
           {/* Costo y precio */}
           <div>
-            <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>Costo unitario ($) *</label>
-            <input className="input-mm" type="number" step="0.01" min="0" placeholder="0.00" value={form.costo_unitario} onChange={e => setForm({ ...form, costo_unitario: e.target.value })} />
+            <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>Costo unitario (COP) *</label>
+            <input className="input-mm" type="number" step="1" min="0" placeholder="0" value={form.costo_unitario_cop} onChange={e => setForm({ ...form, costo_unitario_cop: e.target.value })} />
           </div>
 
           {/* Toggle precio manual */}
@@ -398,10 +424,16 @@ export default function Productos() {
             </div>
           </div>
 
+          {!tasaCop && (
+            <div style={{ gridColumn: '1/-1', background: '#FFF3E0', borderRadius: 12, padding: '12px 16px', fontSize: '0.8rem', color: '#E65100', fontWeight: 600 }}>
+              ⚠️ No hay tasa COP cargada. Debes registrar una en Tasas de cambio antes de guardar el producto.
+            </div>
+          )}
+
           {form.usar_precio_manual ? (
             <div style={{ gridColumn: '1/-1' }}>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>Precio de venta manual ($)</label>
-              <input className="input-mm" type="number" step="0.01" min="0" placeholder="0.00" value={form.precio_manual} onChange={e => setForm({ ...form, precio_manual: e.target.value })} />
+              <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>Precio de venta manual (COP)</label>
+              <input className="input-mm" type="number" step="1" min="0" placeholder="0" value={form.precio_manual_cop} onChange={e => setForm({ ...form, precio_manual_cop: e.target.value })} />
             </div>
           ) : (
             <div style={{ gridColumn: '1/-1' }}>
@@ -411,10 +443,17 @@ export default function Productos() {
           )}
 
           {/* Preview precio */}
-          {form.costo_unitario && (
-            <div style={{ gridColumn: '1/-1', background: '#E8F5E9', borderRadius: 12, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {form.costo_unitario_cop && (
+            <div style={{ gridColumn: '1/-1', background: '#E8F5E9', borderRadius: 12, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
               <span style={{ fontSize: '0.85rem', color: '#1B5E20', fontWeight: 600 }}>💡 Precio final de venta</span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--verde)' }}>${precioCalculado()}</span>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--verde)' }}>
+                  ${Number(precioCalculadoCop()).toLocaleString('es-CO')} COP
+                </div>
+                {precioEstimadoUsd() && (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)' }}>≈ ${precioEstimadoUsd()} USD</div>
+                )}
+              </div>
             </div>
           )}
 
@@ -473,7 +512,7 @@ export default function Productos() {
           <button onClick={() => setModalForm(false)} style={{ padding: '10px 20px', borderRadius: 12, border: '1px solid #E0E0E0', background: '#fff', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600 }}>
             Cancelar
           </button>
-          <button className="btn-verde" onClick={guardar} disabled={guardando}>
+          <button className="btn-verde" onClick={guardar} disabled={guardando || !tasaCop}>
             {guardando ? <span className="spinner-border spinner-border-sm me-2" /> : null}
             {guardando ? 'Guardando...' : productoSel ? 'Actualizar' : 'Crear producto'}
           </button>
