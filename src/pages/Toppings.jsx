@@ -35,7 +35,7 @@ const Modal = ({ show, onClose, children, titulo }) => {
   );
 };
 
-const formVacio = { nombre: '', precio_cop: '' };
+const formVacio = { nombre: '', precio_cop: '', codigo: '' };
 
 export default function Toppings() {
   const [toppings, setToppings] = useState([]);
@@ -76,7 +76,7 @@ export default function Toppings() {
 
   const abrirEditar = (t) => {
     setToppingSel(t);
-    setForm({ nombre: t.nombre, precio_cop: t.precio_cop || '' });
+    setForm({ nombre: t.nombre, precio_cop: t.precio_cop || '', codigo: t.codigo || '' });
     setModalForm(true);
   };
 
@@ -202,13 +202,20 @@ export default function Toppings() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 6 }}>{t.nombre}</div>
-                  <span style={{
-                    background: t.activo ? '#E8F5E9' : '#FFEBEE',
-                    color: t.activo ? '#1B5E20' : '#C62828',
-                    borderRadius: 20, padding: '3px 10px', fontSize: '0.72rem', fontWeight: 700
-                  }}>
-                    {t.activo ? '✓ Activo' : '✗ Inactivo'}
-                  </span>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{
+                      background: t.activo ? '#E8F5E9' : '#FFEBEE',
+                      color: t.activo ? '#1B5E20' : '#C62828',
+                      borderRadius: 20, padding: '3px 10px', fontSize: '0.72rem', fontWeight: 700
+                    }}>
+                      {t.activo ? '✓ Activo' : '✗ Inactivo'}
+                    </span>
+                    {t.codigo && (
+                      <span style={{ fontFamily: 'monospace', fontSize: '0.68rem', fontWeight: 700, color: 'var(--texto-suave)', background: '#F0F0F0', borderRadius: 6, padding: '2px 6px' }}>
+                        {t.codigo}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div style={{ fontSize: '2rem' }}>🍯</div>
               </div>
@@ -310,6 +317,23 @@ export default function Toppings() {
               placeholder="Ej: Leche condensada, Oreo, Chispas..."
               value={form.nombre}
               onChange={e => setForm({ ...form, nombre: e.target.value })}
+            />
+          </div>
+
+          {/* Código */}
+          <div>
+            <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>
+              Código (SKU)
+              <span style={{ marginLeft: 8, fontWeight: 400, color: 'var(--texto-suave)', fontSize: '0.75rem' }}>
+                (déjalo vacío para autogenerar)
+              </span>
+            </label>
+            <input
+              className="input-mm"
+              placeholder="Ej: TOP-0001 (automático si lo dejas en blanco)"
+              value={form.codigo}
+              onChange={e => setForm({ ...form, codigo: e.target.value.toUpperCase() })}
+              style={{ fontFamily: 'monospace', letterSpacing: 0.5 }}
             />
           </div>
 

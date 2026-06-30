@@ -42,7 +42,7 @@ const Modal = ({ show, onClose, children, titulo }) => {
 const formVacio = {
   nombre: '', descripcion: '', categoria_id: '', inventario_id: '',
   costo_unitario_cop: '', porcentaje_ganancia: '', precio_manual_cop: '',
-  usar_precio_manual: false, tiene_toppings: false, toppings_ids: []
+  usar_precio_manual: false, tiene_toppings: false, toppings_ids: [], codigo: ''
 };
 
 export default function Productos() {
@@ -122,7 +122,8 @@ export default function Productos() {
         precio_manual_cop: p.precio_manual_cop || '',
         usar_precio_manual: p.usar_precio_manual,
         tiene_toppings: p.tiene_toppings,
-        toppings_ids: p.toppings?.map(t => t.id) || []
+        toppings_ids: p.toppings?.map(t => t.id) || [],
+        codigo: p.codigo || ''
       });
       setPrevistaImagen(p.imagen_url);
     } catch { toast.error('Error cargando producto'); }
@@ -284,7 +285,14 @@ export default function Productos() {
 
               {/* Info */}
               <div style={{ padding: '14px 16px' }}>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 4 }}>{prod.nombre}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{prod.nombre}</div>
+                  {prod.codigo && (
+                    <span style={{ fontFamily: 'monospace', fontSize: '0.68rem', fontWeight: 700, color: 'var(--texto-suave)', background: '#F0F0F0', borderRadius: 6, padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                      {prod.codigo}
+                    </span>
+                  )}
+                </div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--texto-suave)', marginBottom: 10 }}>
                   {prod.categoria || 'Sin categoría'}
                 </div>
@@ -371,6 +379,18 @@ export default function Productos() {
           <div style={{ gridColumn: '1/-1' }}>
             <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>Nombre *</label>
             <input className="input-mm" placeholder="Ej: Maracuyá con mango" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} />
+          </div>
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>
+              Código (SKU)
+              <span style={{ marginLeft: 8, fontWeight: 400, color: 'var(--texto-suave)', fontSize: '0.75rem' }}>
+                (déjalo vacío para autogenerar)
+              </span>
+            </label>
+            <input className="input-mm" placeholder="Ej: PRD-0001 (automático si lo dejas en blanco)"
+              value={form.codigo}
+              onChange={e => setForm({ ...form, codigo: e.target.value.toUpperCase() })}
+              style={{ fontFamily: 'monospace', letterSpacing: 0.5 }} />
           </div>
           <div style={{ gridColumn: '1/-1' }}>
             <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>Descripción</label>

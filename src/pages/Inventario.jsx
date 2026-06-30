@@ -43,7 +43,7 @@ const camposVacios = {
   nombre: '', descripcion: '', categoria_id: '',
   cantidad: '', unidad_medida: '', costo_total: '',
   moneda_compra: 'USD', tasa_cambio: '',
-  proveedor: '', fecha_compra: ''
+  proveedor: '', fecha_compra: '', codigo: ''
 };
 
 export default function Inventario() {
@@ -92,7 +92,8 @@ export default function Inventario() {
       moneda_compra: item.moneda_compra || 'USD',
       tasa_cambio: item.tasa_cambio || '',
       proveedor: item.proveedor || '',
-      fecha_compra: item.fecha_compra?.split('T')[0] || ''
+      fecha_compra: item.fecha_compra?.split('T')[0] || '',
+      codigo: item.codigo || ''
     });
     setModalForm(true);
   };
@@ -203,7 +204,7 @@ export default function Inventario() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ background: 'var(--crema)', borderBottom: '2px solid #F0F0F0' }}>
-                  {['Producto', 'Categoría', 'Cantidad', 'Unidad', 'Costo Total', 'Moneda', 'Costo Unit.', 'Equiv. USD', 'Proveedor', 'Acciones'].map(h => (
+                  {['Código', 'Producto', 'Categoría', 'Cantidad', 'Unidad', 'Costo Total', 'Moneda', 'Costo Unit.', 'Equiv. USD', 'Proveedor', 'Acciones'].map(h => (
                     <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 600, fontSize: '0.78rem', color: 'var(--texto-suave)', whiteSpace: 'nowrap' }}>
                       {h}
                     </th>
@@ -213,7 +214,7 @@ export default function Inventario() {
               <tbody>
                 {filtrados.length === 0 ? (
                   <tr>
-                    <td colSpan={10} style={{ textAlign: 'center', padding: 48, color: 'var(--texto-suave)' }}>
+                    <td colSpan={11} style={{ textAlign: 'center', padding: 48, color: 'var(--texto-suave)' }}>
                       <RiArchiveLine style={{ fontSize: 36, display: 'block', margin: '0 auto 8px' }} />
                       Sin items en inventario
                     </td>
@@ -224,6 +225,13 @@ export default function Inventario() {
                     onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                   >
+                    {/* Código */}
+                    <td style={{ padding: '14px 16px' }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', fontWeight: 700, color: 'var(--texto-suave)', background: '#F0F0F0', borderRadius: 6, padding: '2px 8px' }}>
+                        {item.codigo || '—'}
+                      </span>
+                    </td>
+
                     {/* Producto */}
                     <td style={{ padding: '14px 16px', fontWeight: 600, minWidth: 140 }}>
                       {item.nombre}
@@ -342,6 +350,19 @@ export default function Inventario() {
           <div style={{ gridColumn: '1/-1' }}>
             <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>Nombre *</label>
             <input className="input-mm" placeholder="Ej: Mangos Tommy" value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} />
+          </div>
+
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>
+              Código (SKU)
+              <span style={{ marginLeft: 8, fontWeight: 400, color: 'var(--texto-suave)', fontSize: '0.75rem' }}>
+                (déjalo vacío para autogenerar)
+              </span>
+            </label>
+            <input className="input-mm" placeholder="Ej: INV-0001 (automático si lo dejas en blanco)"
+              value={form.codigo}
+              onChange={e => setForm({ ...form, codigo: e.target.value.toUpperCase() })}
+              style={{ fontFamily: 'monospace', letterSpacing: 0.5 }} />
           </div>
 
           <div style={{ gridColumn: '1/-1' }}>
