@@ -76,7 +76,7 @@ const ProductoCard = ({ prod, onClick }) => (
     <div style={{ padding: '10px 12px' }}>
       <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: 2, lineHeight: 1.2 }}>{prod.nombre}</div>
       <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--verde)' }}>
-        ${parseFloat(prod.precio_final_usd).toFixed(2)}
+        ${Number(prod.precio_final_cop).toLocaleString('es-CO')}
       </div>
     </div>
   </div>
@@ -87,7 +87,7 @@ const ModalToppings = ({ producto, onAgregar, onClose }) => {
   const [seleccionados, setSeleccionados] = useState([]);
   if (!producto) return null;
   const toggle = (t) => setSeleccionados(s => s.find(x => x.id === t.id) ? s.filter(x => x.id !== t.id) : [...s, t]);
-  const extra = seleccionados.reduce((a, t) => a + parseFloat(t.precio_usd), 0);
+  const extra = seleccionados.reduce((a, t) => a + (parseFloat(t.precio_cop) || 0), 0);
 
   return (
     <div style={{
@@ -112,14 +112,14 @@ const ModalToppings = ({ producto, onAgregar, onClose }) => {
             }}>
               <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>{t.nombre}</span>
               <span style={{ fontWeight: 700, color: 'var(--naranja)', fontSize: '0.85rem' }}>
-                {parseFloat(t.precio_usd) > 0 ? `+$${parseFloat(t.precio_usd).toFixed(2)}` : 'Gratis'}
+                {parseFloat(t.precio_cop) > 0 ? `+$${Number(t.precio_cop).toLocaleString('es-CO')}` : 'Gratis'}
               </span>
             </button>
           ))}
         </div>
         <button className="btn-verde" style={{ width: '100%', padding: 13 }}
           onClick={() => onAgregar(producto, seleccionados)}>
-          Añadir · ${(parseFloat(producto.precio_final_usd) + extra).toFixed(2)}
+          Añadir · ${Number(parseFloat(producto.precio_final_cop) + extra).toLocaleString('es-CO')}
         </button>
       </div>
     </div>
@@ -157,18 +157,18 @@ const ModalTicket = ({ show, venta, onClose }) => {
                   </div>
                 )}
               </div>
-              <span style={{ fontWeight: 700 }}>${parseFloat(item.subtotal_usd).toFixed(2)}</span>
+              <span style={{ fontWeight: 700 }}>${Number(item.subtotal_cop).toLocaleString('es-CO')}</span>
             </div>
           ))}
           <div style={{ borderTop: '1px dashed #E0E0E0', marginTop: 10, paddingTop: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
-              <span>Total USD</span>
-              <span style={{ color: 'var(--verde)' }}>${parseFloat(venta.total_usd).toFixed(2)}</span>
+              <span>Total {venta.moneda_pago}</span>
+              <span style={{ color: 'var(--verde)' }}>{simbolo} {Number(venta.total_pagado).toLocaleString()}</span>
             </div>
             {venta.moneda_pago !== 'USD' && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginTop: 4 }}>
-                <span>Total {venta.moneda_pago}</span>
-                <span style={{ color: 'var(--naranja)' }}>{simbolo} {parseFloat(venta.total_pagado).toLocaleString()}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, marginTop: 4, fontSize: '0.78rem', color: 'var(--texto-suave)' }}>
+                <span>Total USD (ref.)</span>
+                <span>${parseFloat(venta.total_usd).toFixed(2)}</span>
               </div>
             )}
           </div>
@@ -213,8 +213,9 @@ export default function Ventas() {
   const [catActiva, setCatActiva] = useState('');
   const [carrito, setCarrito] = useState([]);
   const [modalToppings, setModalToppings] = useState(null);
-  const [moneda, setMoneda] = useState('USD');
-  const [tasa, setTasa] = useState('');
+  const [moneda, setMoneda] = useState('COP');
+  const [tasa, setTasa] = useState(''); // tasa BS/USD, solo aplica si moneda === 'BS'
+  const [tasaCop, setTasaCop] = useState(null); // tasa COP/USD vigente (objeto tasas_cambio)
   const [tipoPago, setTipoPago] = useState('efectivo');
   const [cuentaId, setCuentaId] = useState('');
   const [notas, setNotas] = useState('');
@@ -244,6 +245,8 @@ export default function Ventas() {
       setTasas(r3.data.tasas);
       const ultimaBS = r3.data.tasas.find(t => t.moneda === 'BS');
       if (ultimaBS) setTasa(ultimaBS.tasa_por_usd);
+      const ultimaCOP = r3.data.tasas.find(t => t.moneda === 'COP');
+      setTasaCop(ultimaCOP || null);
     } catch { toast.error('Error cargando productos'); }
     finally { setCargandoPOS(false); }
   };
@@ -311,15 +314,19 @@ export default function Ventas() {
 
   const quitarItem = (idx) => setCarrito(c => c.filter((_, i) => i !== idx));
 
-  /* ── Totales ── */
-  const totalUSD = carrito.reduce((acc, item) => {
-    const base = parseFloat(item.precio_final_usd) * item.cantidad;
-    const tops = (item.toppingsSeleccionados || []).reduce((a, t) => a + parseFloat(t.precio_usd), 0) * item.cantidad;
+  /* ── Totales (COP es la moneda nativa de los productos) ── */
+  const totalCOP = carrito.reduce((acc, item) => {
+    const base = parseFloat(item.precio_final_cop) * item.cantidad;
+    const tops = (item.toppingsSeleccionados || []).reduce((a, t) => a + (parseFloat(t.precio_cop) || 0), 0) * item.cantidad;
     return acc + base + tops;
   }, 0);
 
+  const totalUSD = tasaCop?.tasa_por_usd ? totalCOP / parseFloat(tasaCop.tasa_por_usd) : 0;
+
   const totalConvertido = () => {
+    if (moneda === 'COP') return totalCOP.toFixed(2);
     if (moneda === 'USD') return totalUSD.toFixed(2);
+    // BS: se cruza vía USD con la tasa BS/USD ingresada
     return (totalUSD * parseFloat(tasa || 1)).toFixed(2);
   };
 
@@ -328,7 +335,8 @@ export default function Ventas() {
   /* ── Confirmar venta ── */
   const confirmarVenta = async () => {
     if (carrito.length === 0) { toast.error('El carrito está vacío'); return; }
-    if (moneda !== 'USD' && !tasa) { toast.error('Ingresa la tasa de cambio'); return; }
+    if (!tasaCop) { toast.error('No hay tasa COP cargada. Regístrala en Tasas de cambio'); return; }
+    if (moneda === 'BS' && !tasa) { toast.error('Ingresa la tasa de cambio (BS/USD)'); return; }
     if (tipoPago === 'transferencia' && !cuentaId) { toast.error('Selecciona una cuenta bancaria'); return; }
 
     setProcesando(true);
@@ -337,7 +345,7 @@ export default function Ventas() {
         moneda_pago: moneda,
         tipo_pago: tipoPago,
         cuenta_bancaria_id: cuentaId || null,
-        tasa_cambio_usada: moneda !== 'USD' ? tasa : null,
+        tasa_cambio_usada: moneda === 'BS' ? tasa : null,
         notas,
         items: carrito.map(i => ({
           producto_id: i.id,
@@ -497,8 +505,8 @@ export default function Ventas() {
                   Selecciona productos del menú
                 </div>
               ) : carrito.map((item, idx) => {
-                const extras = (item.toppingsSeleccionados || []).reduce((a, t) => a + parseFloat(t.precio_usd), 0);
-                const subtotal = (parseFloat(item.precio_final_usd) + extras) * item.cantidad;
+                const extras = (item.toppingsSeleccionados || []).reduce((a, t) => a + (parseFloat(t.precio_cop) || 0), 0);
+                const subtotal = (parseFloat(item.precio_final_cop) + extras) * item.cantidad;
                 return (
                   <div key={idx} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid #F5F5F5' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
@@ -527,7 +535,7 @@ export default function Ventas() {
                           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem'
                         }}><RiAddLine /></button>
                       </div>
-                      <span style={{ fontWeight: 700, color: 'var(--verde)', fontSize: '0.9rem' }}>${subtotal.toFixed(2)}</span>
+                      <span style={{ fontWeight: 700, color: 'var(--verde)', fontSize: '0.9rem' }}>${Number(subtotal).toLocaleString('es-CO')}</span>
                     </div>
                   </div>
                 );
@@ -557,11 +565,11 @@ export default function Ventas() {
                 </div>
 
                 {/* Tasa */}
-                {moneda !== 'USD' && (
+                {moneda === 'BS' && (
                   <div style={{ marginBottom: 14 }}>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 6 }}>TASA ({moneda}/USD)</div>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 6 }}>TASA (BS/USD)</div>
                     <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-                      {tasas.filter(t => t.moneda === moneda).slice(0, 2).map((t, i) => (
+                      {tasas.filter(t => t.moneda === 'BS').slice(0, 2).map((t, i) => (
                         <button key={i} onClick={() => setTasa(t.tasa_por_usd)} style={{
                           padding: '4px 10px', borderRadius: 20, border: '2px solid',
                           borderColor: parseFloat(tasa) === parseFloat(t.tasa_por_usd) ? 'var(--verde)' : '#E0E0E0',
@@ -577,6 +585,14 @@ export default function Ventas() {
                       placeholder={`Tasa manual...`} value={tasa}
                       onChange={e => setTasa(e.target.value)}
                       style={{ fontSize: '0.85rem', padding: '10px 14px' }} />
+                  </div>
+                )}
+
+                {(moneda === 'COP' || moneda === 'USD') && (
+                  <div style={{ marginBottom: 14, padding: '8px 12px', background: '#F0F7FF', borderRadius: 10, fontSize: '0.74rem', color: '#1565C0' }}>
+                    {tasaCop
+                      ? `Tasa COP/USD vigente: ${Number(tasaCop.tasa_por_usd).toLocaleString('es-CO')}`
+                      : '⚠️ No hay tasa COP cargada'}
                   </div>
                 )}
 
@@ -639,8 +655,14 @@ export default function Ventas() {
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.72rem' }}>USD</div>
-                      <div style={{ color: 'var(--naranja-claro)', fontWeight: 700 }}>${totalUSD.toFixed(2)}</div>
+                      <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.72rem' }}>
+                        {moneda === 'COP' ? 'USD' : 'COP'}
+                      </div>
+                      <div style={{ color: 'var(--naranja-claro)', fontWeight: 700 }}>
+                        {moneda === 'COP'
+                          ? `$${totalUSD.toFixed(2)}`
+                          : `$${Number(totalCOP).toLocaleString('es-CO')}`}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -718,7 +740,7 @@ export default function Ventas() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                   <thead>
                     <tr style={{ background: 'var(--crema)', borderBottom: '2px solid #F0F0F0' }}>
-                      {['#', 'Fecha', 'Cajero', 'Total USD', 'Total Pagado', 'Moneda', 'Tipo Pago', 'Banco', 'Acciones'].map(h => (
+                      {['#', 'Fecha', 'Cajero', 'Total COP', 'Total Pagado', 'Moneda', 'Tipo Pago', 'Banco', 'Acciones'].map(h => (
                         <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 600, fontSize: '0.78rem', color: 'var(--texto-suave)', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
@@ -740,7 +762,7 @@ export default function Ventas() {
                           {new Date(v.creado_en).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </td>
                         <td style={{ padding: '12px 16px', fontWeight: 600 }}>{v.cajero}</td>
-                        <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--verde)' }}>${parseFloat(v.total_usd).toFixed(2)}</td>
+                        <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--verde)' }}>${Number(v.total_cop).toLocaleString('es-CO')}</td>
                         <td style={{ padding: '12px 16px', fontWeight: 600 }}>
                           {v.moneda_pago === 'USD' ? '$' : v.moneda_pago === 'BS' ? 'Bs.' : 'COP$'} {parseFloat(v.total_pagado).toLocaleString()}
                         </td>
@@ -824,7 +846,7 @@ export default function Ventas() {
                 <div key={i} style={{ padding: '10px 14px', background: '#F9F9F9', borderRadius: 10, marginBottom: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                     <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>{item.producto_nombre} x{item.cantidad}</span>
-                    <span style={{ fontWeight: 700, color: 'var(--verde)' }}>${parseFloat(item.subtotal_usd).toFixed(2)}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--verde)' }}>${Number(item.subtotal_cop).toLocaleString('es-CO')}</span>
                   </div>
                   {item.toppings?.length > 0 && (
                     <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)' }}>
@@ -832,7 +854,7 @@ export default function Ventas() {
                     </div>
                   )}
                   <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)', marginTop: 2 }}>
-                    Ganancia: <span style={{ color: '#2E7D32', fontWeight: 600 }}>${parseFloat(item.ganancia_usd).toFixed(2)}</span>
+                    Ganancia: <span style={{ color: '#2E7D32', fontWeight: 600 }}>${Number(item.ganancia_cop).toLocaleString('es-CO')}</span>
                   </div>
                 </div>
               ))}
@@ -840,8 +862,8 @@ export default function Ventas() {
 
             <div style={{ background: 'var(--verde)', borderRadius: 14, padding: '16px 20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff', fontWeight: 700, marginBottom: 6 }}>
-                <span>Total USD</span>
-                <span>${parseFloat(ventaDetalle.total_usd).toFixed(2)}</span>
+                <span>Total COP</span>
+                <span>${Number(ventaDetalle.total_cop).toLocaleString('es-CO')}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--naranja-claro)', fontWeight: 700 }}>
                 <span>Total {ventaDetalle.moneda_pago}</span>
