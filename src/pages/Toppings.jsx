@@ -40,18 +40,23 @@ const formVacio = { nombre: '', precio_cop: '', codigo: '' };
 export default function Toppings() {
   const [toppings, setToppings] = useState([]);
   const [tasas, setTasas] = useState({ BS: null, COP: null });
+  const [inventario, setInventario] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [modalForm, setModalForm] = useState(false);
   const [toppingSel, setToppingSel] = useState(null);
   const [form, setForm] = useState(formVacio);
   const [guardando, setGuardando] = useState(false);
+  // ── Receta de insumos ──
+  const [receta, setReceta] = useState([]);
+  const [nuevoInsumo, setNuevoInsumo] = useState({ inventario_id: '', cantidad_requerida: '', unidad: '' });
 
   const cargar = async () => {
     setCargando(true);
     try {
-      const [r1, r2] = await Promise.all([
+      const [r1, r2, r3] = await Promise.all([
         API.get('/toppings'),
-        API.get('/tasas-cambio')
+        API.get('/tasas-cambio'),
+        API.get('/inventario')
       ]);
       setToppings(r1.data.toppings);
       const todasTasas = r2.data.tasas;
@@ -61,6 +66,7 @@ export default function Toppings() {
         BS: ultimaBS ? parseFloat(ultimaBS.tasa_por_usd) : null,
         COP: ultimaCOP ? parseFloat(ultimaCOP.tasa_por_usd) : null
       });
+      setInventario(r3.data.inventario);
     } catch { toast.error('Error cargando toppings'); }
     finally { setCargando(false); }
   };
@@ -71,12 +77,20 @@ export default function Toppings() {
   const abrirCrear = () => {
     setToppingSel(null);
     setForm(formVacio);
+    setReceta([]);
+    setNuevoInsumo({ inventario_id: '', cantidad_requerida: '', unidad: '' });
     setModalForm(true);
   };
 
-  const abrirEditar = (t) => {
+  const abrirEditar = async (t) => {
     setToppingSel(t);
+    setReceta([]);
+    setNuevoInsumo({ inventario_id: '', cantidad_requerida: '', unidad: '' });
     setForm({ nombre: t.nombre, precio_cop: t.precio_cop || '', codigo: t.codigo || '' });
+    try {
+      const { data } = await API.get(`/toppings/${t.id}/receta`);
+      setReceta(data.insumos || []);
+    } catch { /* sin receta aún */ }
     setModalForm(true);
   };
 
@@ -88,13 +102,30 @@ export default function Toppings() {
     }
     setGuardando(true);
     try {
+      let toppingId;
       if (toppingSel) {
         await API.put(`/toppings/${toppingSel.id}`, form);
+        toppingId = toppingSel.id;
         toast.success('Topping actualizado');
       } else {
-        await API.post('/toppings', form);
+        const { data } = await API.post('/toppings', form);
+        toppingId = data.topping.id;
         toast.success('Topping creado');
       }
+
+      // Guardar receta de insumos
+      if (toppingId) {
+        try {
+          await API.post(`/toppings/${toppingId}/receta`, {
+            insumos: receta.map(r => ({
+              inventario_id: r.inventario_id,
+              cantidad_requerida: r.cantidad_requerida,
+              unidad: r.unidad || ''
+            }))
+          });
+        } catch { toast.warn('Topping guardado, pero error al guardar receta de insumos'); }
+      }
+
       setModalForm(false);
       cargar();
     } catch (err) {
@@ -427,6 +458,78 @@ export default function Toppings() {
               )}
             </div>
           )}
+        </div>
+
+        <div style={{ marginTop: 8, borderTop: '2px dashed #E0E0E0', paddingTop: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 4 }}>📦 Insumos que consume este topping</div>
+          <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)', marginBottom: 14 }}>
+            Al venderse como extra, se descuenta la cantidad indicada por unidad.
+          </div>
+
+          {receta.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+              {receta.map((ins, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F9F9F9', borderRadius: 10, padding: '9px 12px' }}>
+                  <div style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600 }}>
+                    {ins.insumo_nombre || inventario.find(i => i.id === parseInt(ins.inventario_id))?.nombre || `Insumo #${ins.inventario_id}`}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--naranja)', fontWeight: 700 }}>
+                    {ins.cantidad_requerida} {ins.unidad || ''}
+                  </div>
+                  <button onClick={() => setReceta(r => r.filter((_, i) => i !== idx))}
+                    style={{ background: '#FFEBEE', border: 'none', borderRadius: 7, padding: '4px 8px', color: '#C62828', cursor: 'pointer', fontSize: '0.8rem' }}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 6, alignItems: 'end' }}>
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, marginBottom: 4, display: 'block', color: 'var(--texto-suave)' }}>Insumo</label>
+              <select className="input-mm" value={nuevoInsumo.inventario_id}
+                onChange={e => setNuevoInsumo(n => ({ ...n, inventario_id: e.target.value }))}>
+                <option value="">Seleccionar...</option>
+                {inventario.map(i => (
+                  <option key={i.id} value={i.id}>{i.nombre} (stock: {i.cantidad})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, marginBottom: 4, display: 'block', color: 'var(--texto-suave)' }}>Cantidad</label>
+              <input className="input-mm" type="number" step="0.01" min="0.01" placeholder="Ej: 30"
+                value={nuevoInsumo.cantidad_requerida}
+                onChange={e => setNuevoInsumo(n => ({ ...n, cantidad_requerida: e.target.value }))} />
+            </div>
+            <div>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, marginBottom: 4, display: 'block', color: 'var(--texto-suave)' }}>Unidad</label>
+              <input className="input-mm" placeholder="g, ml..." value={nuevoInsumo.unidad}
+                onChange={e => setNuevoInsumo(n => ({ ...n, unidad: e.target.value }))} />
+            </div>
+            <button
+              onClick={() => {
+                if (!nuevoInsumo.inventario_id || !nuevoInsumo.cantidad_requerida || parseFloat(nuevoInsumo.cantidad_requerida) <= 0) {
+                  toast.error('Selecciona un insumo y cantidad válida');
+                  return;
+                }
+                if (receta.some(r => String(r.inventario_id) === String(nuevoInsumo.inventario_id))) {
+                  toast.error('Este insumo ya está en la receta');
+                  return;
+                }
+                const insumoInfo = inventario.find(i => i.id === parseInt(nuevoInsumo.inventario_id));
+                setReceta(r => [...r, {
+                  inventario_id: parseInt(nuevoInsumo.inventario_id),
+                  cantidad_requerida: parseFloat(nuevoInsumo.cantidad_requerida),
+                  unidad: nuevoInsumo.unidad,
+                  insumo_nombre: insumoInfo?.nombre || ''
+                }]);
+                setNuevoInsumo({ inventario_id: '', cantidad_requerida: '', unidad: '' });
+              }}
+              style={{ background: 'var(--verde)', color: '#fff', border: 'none', borderRadius: 9, padding: '10px 14px', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 700, fontSize: '1.1rem' }}>
+              +
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 12, marginTop: 24, justifyContent: 'flex-end' }}>

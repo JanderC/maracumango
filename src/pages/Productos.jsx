@@ -58,7 +58,10 @@ export default function Productos() {
   const [imagen, setImagen] = useState(null);
   const [previstaImagen, setPrevistaImagen] = useState(null);
   const [guardando, setGuardando] = useState(false);
-  const [tasaCop, setTasaCop] = useState(null); // { tasa_por_usd, actualizado_en, ... }
+  const [tasaCop, setTasaCop] = useState(null);
+  // ── Receta de insumos ──
+  const [receta, setReceta] = useState([]); // [{ inventario_id, cantidad_requerida, unidad, insumo_nombre }]
+  const [nuevoInsumo, setNuevoInsumo] = useState({ inventario_id: '', cantidad_requerida: '', unidad: '' });
 
   // Precio final en COP (manual o calculado por porcentaje de ganancia)
   const precioCalculadoCop = () => {
@@ -104,13 +107,20 @@ export default function Productos() {
     setForm(formVacio);
     setImagen(null);
     setPrevistaImagen(null);
+    setReceta([]);
+    setNuevoInsumo({ inventario_id: '', cantidad_requerida: '', unidad: '' });
     setModalForm(true);
   };
 
   const abrirEditar = async (prod) => {
     setProductoSel(prod);
+    setReceta([]);
+    setNuevoInsumo({ inventario_id: '', cantidad_requerida: '', unidad: '' });
     try {
-      const { data } = await API.get(`/productos/${prod.id}`);
+      const [{ data }, { data: recetaData }] = await Promise.all([
+        API.get(`/productos/${prod.id}`),
+        API.get(`/productos/${prod.id}/receta`)
+      ]);
       const p = data.producto;
       setForm({
         nombre: p.nombre,
@@ -126,6 +136,7 @@ export default function Productos() {
         codigo: p.codigo || ''
       });
       setPrevistaImagen(p.imagen_url);
+      setReceta(recetaData.insumos || []);
     } catch { toast.error('Error cargando producto'); }
     setImagen(null);
     setModalForm(true);
@@ -169,17 +180,39 @@ export default function Productos() {
       });
       if (imagen) fd.append('imagen', imagen);
 
+      let productoId;
       if (productoSel) {
-        await API.put(`/productos/${productoSel.id}`, fd, {
+        const { data } = await API.put(`/productos/${productoSel.id}`, fd, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
+        productoId = productoSel.id;
         toast.success('Producto actualizado');
       } else {
-        await API.post('/productos', fd, {
+        const { data } = await API.post('/productos', fd, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
+        productoId = data.producto.id;
         toast.success('Producto creado');
       }
+
+      // Guardar receta de insumos (si hay alguno configurado)
+      if (receta.length > 0 && productoId) {
+        try {
+          await API.post(`/productos/${productoId}/receta`, {
+            insumos: receta.map(r => ({
+              inventario_id: r.inventario_id,
+              cantidad_requerida: r.cantidad_requerida,
+              unidad: r.unidad || ''
+            }))
+          });
+        } catch (eR) {
+          toast.warn('Producto guardado, pero hubo un error al guardar la receta de insumos');
+        }
+      } else if (productoId && receta.length === 0 && productoSel) {
+        // Si borraron todos los insumos al editar, limpiar receta
+        await API.post(`/productos/${productoId}/receta`, { insumos: [] }).catch(() => {});
+      }
+
       setModalForm(false);
       cargar();
     } catch (err) {
@@ -526,6 +559,84 @@ export default function Productos() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* ── Sección de Insumos (receta) ── */}
+        <div style={{ marginTop: 24, borderTop: '2px dashed #E0E0E0', paddingTop: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 4 }}>📦 Insumos que consume este producto</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--texto-suave)', marginBottom: 16 }}>
+            Al vender 1 unidad se descontará la cantidad indicada de cada insumo.
+          </div>
+
+          {/* Lista de insumos agregados */}
+          {receta.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              {receta.map((ins, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F9F9F9', borderRadius: 10, padding: '10px 14px' }}>
+                  <div style={{ flex: 1, fontSize: '0.85rem', fontWeight: 600 }}>
+                    {ins.insumo_nombre || inventario.find(i => i.id === parseInt(ins.inventario_id))?.nombre || `Insumo #${ins.inventario_id}`}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--naranja)', fontWeight: 700, minWidth: 80 }}>
+                    {ins.cantidad_requerida} {ins.unidad || ''}
+                  </div>
+                  <button onClick={() => setReceta(r => r.filter((_, i) => i !== idx))}
+                    style={{ background: '#FFEBEE', border: 'none', borderRadius: 8, padding: '5px 8px', color: '#C62828', cursor: 'pointer', fontSize: '0.85rem' }}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Agregar nuevo insumo */}
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
+            <div>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: 4, display: 'block', color: 'var(--texto-suave)' }}>Insumo</label>
+              <select className="input-mm" value={nuevoInsumo.inventario_id}
+                onChange={e => setNuevoInsumo(n => ({ ...n, inventario_id: e.target.value }))}>
+                <option value="">Seleccionar insumo...</option>
+                {inventario.map(i => (
+                  <option key={i.id} value={i.id}>
+                    {i.nombre} (stock: {i.cantidad} {i.unidad_medida || ''})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: 4, display: 'block', color: 'var(--texto-suave)' }}>Cantidad</label>
+              <input className="input-mm" type="number" step="0.01" min="0.01" placeholder="Ej: 150"
+                value={nuevoInsumo.cantidad_requerida}
+                onChange={e => setNuevoInsumo(n => ({ ...n, cantidad_requerida: e.target.value }))} />
+            </div>
+            <div>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: 4, display: 'block', color: 'var(--texto-suave)' }}>Unidad</label>
+              <input className="input-mm" placeholder="g, ml, kg..." value={nuevoInsumo.unidad}
+                onChange={e => setNuevoInsumo(n => ({ ...n, unidad: e.target.value }))} />
+            </div>
+            <button
+              onClick={() => {
+                if (!nuevoInsumo.inventario_id || !nuevoInsumo.cantidad_requerida || parseFloat(nuevoInsumo.cantidad_requerida) <= 0) {
+                  toast.error('Selecciona un insumo y una cantidad válida');
+                  return;
+                }
+                const yaExiste = receta.some(r => String(r.inventario_id) === String(nuevoInsumo.inventario_id));
+                if (yaExiste) {
+                  toast.error('Este insumo ya está en la receta');
+                  return;
+                }
+                const insumoInfo = inventario.find(i => i.id === parseInt(nuevoInsumo.inventario_id));
+                setReceta(r => [...r, {
+                  inventario_id: parseInt(nuevoInsumo.inventario_id),
+                  cantidad_requerida: parseFloat(nuevoInsumo.cantidad_requerida),
+                  unidad: nuevoInsumo.unidad,
+                  insumo_nombre: insumoInfo?.nombre || ''
+                }]);
+                setNuevoInsumo({ inventario_id: '', cantidad_requerida: '', unidad: '' });
+              }}
+              style={{ background: 'var(--verde)', color: '#fff', border: 'none', borderRadius: 10, padding: '10px 14px', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 700, fontSize: '1.1rem', whiteSpace: 'nowrap' }}>
+              +
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 12, marginTop: 24, justifyContent: 'flex-end' }}>
