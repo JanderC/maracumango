@@ -15,24 +15,30 @@ import {
 
 const fmtCOP = (v) => `$${Number(v || 0).toLocaleString('es-CO')}`;
 
-// ── Logotipo (SVG propio — reemplazar por <img src="/logo.png"> si tienen uno) ──
-const Logotipo = ({ size = 44, claro = true }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-    <svg width={size} height={size} viewBox="0 0 44 44" fill="none">
-      <circle cx="22" cy="22" r="21" fill="var(--mm-mango)" stroke="var(--mm-dorado)" strokeWidth="1.5" />
-      <path d="M22 3 A19 19 0 0 1 22 41 Z" fill="var(--mm-dorado)" opacity="0.55" />
-      {[[16,14],[24,12],[14,22],[27,20],[18,28],[26,30],[15,33],[23,34]].map(([cx,cy],i) => (
-        <circle key={i} cx={cx} cy={cy} r="1.6" fill="var(--mm-semilla)" />
-      ))}
-    </svg>
-    <span style={{
-      fontFamily: "'Baloo 2', cursive", fontWeight: 700, fontSize: size * 0.44,
-      color: claro ? 'var(--mm-crema)' : 'var(--mm-semilla)', letterSpacing: 0.2, lineHeight: 1
-    }}>
-      Maracu<span style={{ color: 'var(--mm-dorado)' }}>Mango</span>
-    </span>
-  </div>
-);
+// ── Logotipo real del negocio (public/logo.png), con fallback a texto si falla ──
+const Logotipo = ({ size = 44, claro = true }) => {
+  const [errorLogo, setErrorLogo] = useState(false);
+
+  if (errorLogo) {
+    return (
+      <span style={{
+        fontFamily: "'Baloo 2', cursive", fontWeight: 700, fontSize: size * 0.5,
+        color: claro ? 'var(--mm-crema)' : 'var(--mm-semilla)', letterSpacing: 0.2, lineHeight: 1
+      }}>
+        Maracu<span style={{ color: 'var(--mm-dorado)' }}>Mango</span>
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src="/logo.png"
+      alt="Maracu Mango"
+      onError={() => setErrorLogo(true)}
+      style={{ height: size, width: 'auto', objectFit: 'contain', display: 'block' }}
+    />
+  );
+};
 
 // ── Separador "semillas" — la firma visual repetida en todo el menú ──
 const SeparadorSemillas = ({ oscuro = false }) => (
@@ -79,9 +85,9 @@ export default function Menu() {
     setCargando(true);
     try {
       const [r1, r2, r3] = await Promise.all([
-        API.get('/productos/activos'),
-        API.get('/categorias'),
-        API.get('/toppings').catch(() => ({ data: { toppings: [] } }))
+        API.get('/menu/productos'),
+        API.get('/menu/categorias'),
+        API.get('/menu/toppings').catch(() => ({ data: { toppings: [] } }))
       ]);
       setProductos(r1.data.productos || []);
       setCategorias(r2.data.categorias || []);
@@ -118,7 +124,7 @@ export default function Menu() {
     setDetalleCargando(true);
     setDetalle({ ...prod, toppings: [] });
     try {
-      const { data } = await API.get(`/productos/${prod.id}`);
+      const { data } = await API.get(`/menu/productos/${prod.id}`);
       setDetalle(data.producto);
     } catch {
       // si falla, se queda con los datos básicos ya cargados

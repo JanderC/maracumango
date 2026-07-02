@@ -35,6 +35,10 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/login" element={!usuario ? <Login /> : <Navigate to={usuario.rol === 'admin' ? '/dashboard' : '/catalogo'} />} />
+
+      {/* Pantalla pública para clientes: sin sidebar, sin login */}
+      <Route path="/menu" element={<Menu />} />
+
       <Route path="/" element={<RutaProtegida><Layout /></RutaProtegida>}>
         <Route index element={<Navigate to={usuario?.rol === 'admin' ? '/dashboard' : '/catalogo'} />} />
         <Route path="dashboard" element={<RutaProtegida soloAdmin><Dashboard /></RutaProtegida>} />
@@ -46,7 +50,6 @@ const AppRoutes = () => {
         <Route path="reportes" element={<RutaProtegida soloAdmin><Reportes /></RutaProtegida>} />
         <Route path="usuarios" element={<RutaProtegida soloAdmin><Usuarios /></RutaProtegida>} />
         <Route path="catalogo" element={<RutaProtegida><Catalogo /></RutaProtegida>} />
-        <Route path="menu" element={<RutaProtegida><Menu /></RutaProtegida>} />
         <Route path="toppings" element={<RutaProtegida soloAdmin><Toppings /></RutaProtegida>} />
         <Route path="categorias" element={<RutaProtegida soloAdmin><Categorias /></RutaProtegida>} />
       </Route>
