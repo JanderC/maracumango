@@ -15,6 +15,7 @@ import Reportes from './pages/Reportes';
 import Usuarios from './pages/Usuarios';
 import Toppings from './pages/Toppings';
 import Categorias from './pages/Categorias';
+import Menu from './pages/Menu';
 
 
 const RutaProtegida = ({ children, soloAdmin }) => {
@@ -45,6 +46,7 @@ const AppRoutes = () => {
         <Route path="reportes" element={<RutaProtegida soloAdmin><Reportes /></RutaProtegida>} />
         <Route path="usuarios" element={<RutaProtegida soloAdmin><Usuarios /></RutaProtegida>} />
         <Route path="catalogo" element={<RutaProtegida><Catalogo /></RutaProtegida>} />
+        <Route path="menu" element={<RutaProtegida><Menu /></RutaProtegida>} />
         <Route path="toppings" element={<RutaProtegida soloAdmin><Toppings /></RutaProtegida>} />
         <Route path="categorias" element={<RutaProtegida soloAdmin><Categorias /></RutaProtegida>} />
       </Route>
