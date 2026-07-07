@@ -534,12 +534,19 @@ export default function Productos() {
             </div>
           </div>
 
+          {/* Aviso: aún no hay toppings creados en el sistema */}
+          {form.tiene_toppings && toppings.filter(t => t.activo !== false).length === 0 && (
+            <div style={{ gridColumn: '1/-1', background: '#FFF3E0', borderRadius: 12, padding: '14px 16px', fontSize: '0.82rem', color: '#E65100' }}>
+              ⚠️ Todavía no has creado ningún topping. Ve a <strong>Toppings / Extras</strong> en el menú, créalos primero, y luego vuelve aquí para asignarlos a este producto.
+            </div>
+          )}
+
           {/* Selección de toppings */}
-          {form.tiene_toppings && toppings.filter(t => t.activo).length > 0 && (
+          {form.tiene_toppings && toppings.filter(t => t.activo !== false).length > 0 && (
             <div style={{ gridColumn: '1/-1' }}>
               <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 10, display: 'block' }}>Toppings disponibles para este producto</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {toppings.filter(t => t.activo).map(t => (
+                {toppings.filter(t => t.activo !== false).map(t => (
                   <button
                     key={t.id}
                     type="button"
