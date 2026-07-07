@@ -231,6 +231,13 @@ export default function Ventas() {
   const [ventaDetalle, setVentaDetalle] = useState(null);
   const [modalDetalle, setModalDetalle] = useState(false);
 
+  /* Anulación en dos pasos */
+  const [ventaAAnular, setVentaAAnular] = useState(null); // id de la venta
+  const [pasoAnular, setPasoAnular] = useState(1); // 1: motivo+confirmación, 2: contraseña
+  const [motivoAnular, setMotivoAnular] = useState('');
+  const [contrasenaAnular, setContrasenaAnular] = useState('');
+  const [anulando, setAnulando] = useState(false);
+
   /* ── Cargar datos POS ── */
   const cargarPOS = async () => {
     setCargandoPOS(true);
@@ -373,14 +380,36 @@ export default function Ventas() {
     } catch { toast.error('Error cargando detalle'); }
   };
 
-  const anular = async (id) => {
-    const motivo = window.prompt('Motivo de anulación:');
-    if (!motivo) return;
+  const abrirAnular = (id) => {
+    setVentaAAnular(id);
+    setPasoAnular(1);
+    setMotivoAnular('');
+    setContrasenaAnular('');
+  };
+
+  const cerrarModalAnular = () => {
+    setVentaAAnular(null);
+    setPasoAnular(1);
+    setMotivoAnular('');
+    setContrasenaAnular('');
+  };
+
+  const irAPasoContrasena = () => {
+    if (!motivoAnular.trim()) { toast.error('Debes indicar el motivo de la anulación'); return; }
+    setPasoAnular(2);
+  };
+
+  const confirmarAnulacionFinal = async () => {
+    if (!contrasenaAnular) { toast.error('Ingresa tu contraseña para confirmar'); return; }
+    setAnulando(true);
     try {
-      await API.patch(`/ventas/${id}/anular`, { motivo });
-      toast.success('Venta anulada');
+      await API.patch(`/ventas/${ventaAAnular}/anular`, { motivo: motivoAnular, contrasena: contrasenaAnular });
+      toast.success('Venta anulada exitosamente');
+      cerrarModalAnular();
       cargarHistorial();
-    } catch (err) { toast.error(err.response?.data?.mensaje || 'Error anulando'); }
+    } catch (err) {
+      toast.error(err.response?.data?.mensaje || 'Error anulando la venta');
+    } finally { setAnulando(false); }
   };
 
   const filtradosPOS = productos.filter(p => {
@@ -754,7 +783,7 @@ export default function Ventas() {
                         </td>
                       </tr>
                     ) : ventas.map(v => (
-                      <tr key={v.id} style={{ borderBottom: '1px solid #F9F9F9' }}
+                      <tr key={v.id} style={{ borderBottom: '1px solid #F9F9F9', opacity: v.anulada ? 0.55 : 1 }}
                         onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'}
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                         <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--naranja)' }}>#{v.id}</td>
@@ -774,12 +803,20 @@ export default function Ventas() {
                           }}>{v.moneda_pago}</span>
                         </td>
                         <td style={{ padding: '12px 16px' }}>
-                          <span style={{
-                            borderRadius: 20, padding: '3px 10px', fontSize: '0.75rem', fontWeight: 700,
-                            background: v.tipo_pago === 'anulada' ? '#FFEBEE' : v.tipo_pago === 'efectivo' ? '#F3E5F5' : '#E8F5E9',
-                            color: v.tipo_pago === 'anulada' ? '#C62828' : v.tipo_pago === 'efectivo' ? '#6A1B9A' : '#1B5E20',
-                            textTransform: 'capitalize'
-                          }}>{v.tipo_pago}</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                            <span style={{
+                              borderRadius: 20, padding: '3px 10px', fontSize: '0.75rem', fontWeight: 700,
+                              background: v.tipo_pago === 'efectivo' ? '#F3E5F5' : '#E8F5E9',
+                              color: v.tipo_pago === 'efectivo' ? '#6A1B9A' : '#1B5E20',
+                              textTransform: 'capitalize'
+                            }}>{v.tipo_pago}</span>
+                            {v.anulada && (
+                              <span style={{
+                                borderRadius: 20, padding: '3px 10px', fontSize: '0.7rem', fontWeight: 700,
+                                background: '#FFEBEE', color: '#C62828'
+                              }}>Anulada</span>
+                            )}
+                          </div>
                         </td>
                         <td style={{ padding: '12px 16px', color: 'var(--texto-suave)', fontSize: '0.8rem' }}>
                           {v.nombre_banco || '—'}
@@ -789,8 +826,8 @@ export default function Ventas() {
                             <button onClick={() => verDetalle(v.id)} title="Ver detalle" style={{ background: '#E8F5E9', border: 'none', borderRadius: 8, padding: '6px 9px', color: '#1B5E20', cursor: 'pointer', fontSize: '0.95rem' }}>
                               <RiEyeLine />
                             </button>
-                            {v.tipo_pago !== 'anulada' && (
-                              <button onClick={() => anular(v.id)} title="Anular" style={{ background: '#FFEBEE', border: 'none', borderRadius: 8, padding: '6px 9px', color: '#C62828', cursor: 'pointer', fontSize: '0.95rem' }}>
+                            {!v.anulada && (
+                              <button onClick={() => abrirAnular(v.id)} title="Anular" style={{ background: '#FFEBEE', border: 'none', borderRadius: 8, padding: '6px 9px', color: '#C62828', cursor: 'pointer', fontSize: '0.95rem' }}>
                                 <RiCloseLine />
                               </button>
                             )}
@@ -876,8 +913,71 @@ export default function Ventas() {
                 📝 {ventaDetalle.notas}
               </div>
             )}
+
+            {ventaDetalle.anulada && (
+              <div style={{ marginTop: 14, padding: '14px 16px', background: '#FFEBEE', borderRadius: 12, fontSize: '0.82rem' }}>
+                <div style={{ fontWeight: 800, color: '#C62828', marginBottom: 4 }}>🚫 Venta anulada</div>
+                <div style={{ color: '#C62828' }}>Motivo: {ventaDetalle.motivo_anulacion}</div>
+                <div style={{ color: 'var(--texto-suave)', marginTop: 2 }}>
+                  Por {ventaDetalle.anulado_por_nombre || '—'} · {ventaDetalle.anulada_en ? new Date(ventaDetalle.anulada_en).toLocaleString('es-VE') : ''}
+                </div>
+              </div>
+            )}
           </div>
         )}
+      </Modal>
+
+      {/* Modal anulación — Paso 1: motivo + confirmación */}
+      <Modal show={!!ventaAAnular && pasoAnular === 1} onClose={cerrarModalAnular} titulo={`Anular venta #${ventaAAnular}`} maxWidth={420}>
+        <div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: '#FFF3E0', borderRadius: 12, padding: '14px 16px', marginBottom: 18 }}>
+            <span style={{ fontSize: '1.3rem' }}>⚠️</span>
+            <div style={{ fontSize: '0.85rem', color: '#E65100' }}>
+              Esta acción es irreversible. La venta quedará marcada como anulada en el historial.
+            </div>
+          </div>
+          <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>
+            ¿Cuál es el motivo de la anulación?
+          </label>
+          <textarea className="input-mm" rows={3} placeholder="Ej: el cliente canceló el pedido, error en el cobro..."
+            value={motivoAnular} onChange={e => setMotivoAnular(e.target.value)}
+            style={{ resize: 'none', marginBottom: 20 }} />
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+            <button onClick={cerrarModalAnular} style={{ padding: '10px 20px', borderRadius: 12, border: '1px solid #E0E0E0', background: '#fff', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600 }}>
+              Cancelar
+            </button>
+            <button onClick={irAPasoContrasena} style={{ padding: '10px 20px', borderRadius: 12, border: 'none', background: '#C62828', color: '#fff', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 700 }}>
+              Sí, continuar
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal anulación — Paso 2: confirmar con contraseña */}
+      <Modal show={!!ventaAAnular && pasoAnular === 2} onClose={cerrarModalAnular} titulo="Confirma tu identidad" maxWidth={400}>
+        <div>
+          <p style={{ fontSize: '0.85rem', color: 'var(--texto-suave)', marginBottom: 16 }}>
+            Por seguridad, ingresa tu contraseña de administrador para autorizar la anulación de la venta #{ventaAAnular}.
+          </p>
+          <input className="input-mm" type="password" placeholder="Tu contraseña"
+            value={contrasenaAnular} onChange={e => setContrasenaAnular(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && confirmarAnulacionFinal()}
+            autoFocus style={{ marginBottom: 20 }} />
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+            <button onClick={cerrarModalAnular} disabled={anulando} style={{ padding: '10px 20px', borderRadius: 12, border: '1px solid #E0E0E0', background: '#fff', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600 }}>
+              Cancelar
+            </button>
+            <button onClick={confirmarAnulacionFinal} disabled={anulando} style={{
+              padding: '10px 20px', borderRadius: 12, border: 'none',
+              background: anulando ? '#9E9E9E' : '#C62828', color: '#fff',
+              cursor: anulando ? 'not-allowed' : 'pointer', fontFamily: 'Poppins', fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: 8
+            }}>
+              {anulando ? <span className="spinner-border spinner-border-sm" /> : null}
+              {anulando ? 'Anulando...' : 'Confirmar anulación'}
+            </button>
+          </div>
+        </div>
       </Modal>
 
       <style>{`
