@@ -207,6 +207,19 @@ const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
             </div>
           )}
         </div>
+
+        {venta.tipo_pago === 'efectivo' && venta.monto_recibido !== null && venta.monto_recibido !== undefined && (
+          <div style={{ background: '#E8F5E9', borderRadius: 14, padding: '14px 18px', marginBottom: 20, textAlign: 'left' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: 6 }}>
+              <span style={{ color: 'var(--texto-suave)' }}>Pagó con</span>
+              <span style={{ fontWeight: 700 }}>{simbolo} {Number(venta.monto_recibido).toLocaleString()}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem' }}>
+              <span style={{ fontWeight: 700, color: '#1B5E20' }}>Vuelto a entregar</span>
+              <span style={{ fontWeight: 800, color: '#1B5E20' }}>{simbolo} {Number(venta.vuelto).toLocaleString()}</span>
+            </div>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={() => onImprimir(venta)} style={{
             flex: 1, padding: 13, borderRadius: 14, border: '2px solid var(--naranja)',
@@ -244,6 +257,7 @@ export default function Ventas() {
   const [tasa, setTasa] = useState(''); // tasa BS/USD, solo aplica si moneda === 'BS'
   const [tasaCop, setTasaCop] = useState(null); // tasa COP/USD vigente (objeto tasas_cambio)
   const [tipoPago, setTipoPago] = useState('efectivo');
+  const [montoRecibido, setMontoRecibido] = useState('');
   const [cuentaId, setCuentaId] = useState('');
   const [notas, setNotas] = useState('');
   const [procesando, setProcesando] = useState(false);
@@ -375,12 +389,27 @@ export default function Ventas() {
 
   const simbolo = moneda === 'USD' ? '$' : moneda === 'BS' ? 'Bs.' : 'COP$';
 
+  // Vuelto en tiempo real (solo aplica a pago en efectivo)
+  const vueltoCalculado = () => {
+    const recibido = parseFloat(montoRecibido);
+    if (isNaN(recibido)) return null;
+    return parseFloat((recibido - parseFloat(totalConvertido())).toFixed(2));
+  };
+
   /* ── Confirmar venta ── */
   const confirmarVenta = async () => {
     if (carrito.length === 0) { toast.error('El carrito está vacío'); return; }
     if (!tasaCop) { toast.error('No hay tasa COP cargada. Regístrala en Tasas de cambio'); return; }
     if (moneda === 'BS' && !tasa) { toast.error('Ingresa la tasa de cambio (BS/USD)'); return; }
     if (tipoPago === 'transferencia' && !cuentaId) { toast.error('Selecciona una cuenta bancaria'); return; }
+    if (tipoPago === 'efectivo') {
+      if (montoRecibido === '' || isNaN(parseFloat(montoRecibido))) {
+        toast.error('Ingresa el monto recibido en efectivo'); return;
+      }
+      if (parseFloat(montoRecibido) < parseFloat(totalConvertido()) - 0.01) {
+        toast.error('El monto recibido es menor al total a cobrar'); return;
+      }
+    }
 
     setProcesando(true);
     try {
@@ -389,6 +418,7 @@ export default function Ventas() {
         tipo_pago: tipoPago,
         cuenta_bancaria_id: cuentaId || null,
         tasa_cambio_usada: moneda === 'BS' ? tasa : null,
+        monto_recibido: tipoPago === 'efectivo' ? montoRecibido : null,
         notas,
         items: carrito.map(i => ({
           producto_id: i.id,
@@ -401,6 +431,7 @@ export default function Ventas() {
       setNotas('');
       setTipoPago('efectivo');
       setCuentaId('');
+      setMontoRecibido('');
       setModalTicket(true);
       if (imprimirActivo) imprimirOrdenPreparacion(data.venta);
     } catch (err) {
@@ -667,7 +698,7 @@ export default function Ventas() {
                   <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 8 }}>TIPO DE PAGO</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                     {[{ v: 'efectivo', label: '💵 Efectivo' }, { v: 'transferencia', label: '🏦 Transfer.' }].map(t => (
-                      <button key={t.v} onClick={() => setTipoPago(t.v)} style={{
+                      <button key={t.v} onClick={() => { setTipoPago(t.v); setMontoRecibido(''); }} style={{
                         padding: '9px 0', borderRadius: 10, border: '2px solid',
                         borderColor: tipoPago === t.v ? 'var(--verde)' : '#E0E0E0',
                         background: tipoPago === t.v ? '#E8F5E9' : '#fff',
@@ -677,6 +708,34 @@ export default function Ventas() {
                     ))}
                   </div>
                 </div>
+
+                {/* Cobro en efectivo: monto recibido + vuelto */}
+                {tipoPago === 'efectivo' && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 8 }}>
+                      ¿CON CUÁNTO PAGA? ({simbolo})
+                    </div>
+                    <input className="input-mm" type="number" step="0.01" min="0"
+                      placeholder={`Ej: ${totalConvertido()}`}
+                      value={montoRecibido}
+                      onChange={e => setMontoRecibido(e.target.value)}
+                      style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: 8 }} />
+
+                    {montoRecibido !== '' && !isNaN(parseFloat(montoRecibido)) && (
+                      vueltoCalculado() >= 0 ? (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#E8F5E9', borderRadius: 10, padding: '10px 14px' }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1B5E20' }}>Vuelto a entregar</span>
+                          <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#1B5E20' }}>{simbolo} {vueltoCalculado().toLocaleString()}</span>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FFEBEE', borderRadius: 10, padding: '10px 14px' }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#C62828' }}>Falta por cobrar</span>
+                          <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#C62828' }}>{simbolo} {Math.abs(vueltoCalculado()).toLocaleString()}</span>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
 
                 {/* Cuenta bancaria */}
                 {tipoPago === 'transferencia' && (
@@ -937,6 +996,19 @@ export default function Ventas() {
                 </div>
               ))}
             </div>
+
+            {ventaDetalle.tipo_pago === 'efectivo' && ventaDetalle.monto_recibido !== null && ventaDetalle.monto_recibido !== undefined && (
+              <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+                <div style={{ flex: 1, background: '#F3E5F5', borderRadius: 10, padding: '10px 14px' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)', fontWeight: 600 }}>PAGÓ CON</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{Number(ventaDetalle.monto_recibido).toLocaleString()}</div>
+                </div>
+                <div style={{ flex: 1, background: '#E8F5E9', borderRadius: 10, padding: '10px 14px' }}>
+                  <div style={{ fontSize: '0.72rem', color: '#1B5E20', fontWeight: 600 }}>VUELTO</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1B5E20' }}>{Number(ventaDetalle.vuelto).toLocaleString()}</div>
+                </div>
+              </div>
+            )}
 
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 10 }}>PRODUCTOS</div>
