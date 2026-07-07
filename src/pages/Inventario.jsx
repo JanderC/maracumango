@@ -163,6 +163,16 @@ export default function Inventario() {
 
   const simboloMoneda = (moneda) => moneda === 'USD' ? '$' : moneda === 'BS' ? 'Bs.' : 'COP$';
 
+  // Formato del costo unitario: en COP siempre 2 decimales (céntimos),
+  // en USD/BS se mantienen 4 decimales para no perder precisión en montos pequeños.
+  const formatoCostoUnitario = (valor, moneda) => {
+    const num = parseFloat(valor) || 0;
+    if (moneda === 'COP') {
+      return num.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    return num.toFixed(4);
+  };
+
   return (
     <div>
       {/* Header */}
@@ -288,7 +298,7 @@ export default function Inventario() {
                     {/* Costo unitario en moneda original */}
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ color: 'var(--naranja)', fontWeight: 600, fontSize: '0.82rem' }}>
-                        {simboloMoneda(item.moneda_compra || 'USD')} {parseFloat(item.costo_unitario || 0).toFixed(4)}
+                        {simboloMoneda(item.moneda_compra || 'USD')} {formatoCostoUnitario(item.costo_unitario, item.moneda_compra)}
                       </div>
                       {item.tasa_cambio && item.moneda_compra !== 'USD' && (
                         <div style={{ fontSize: '0.7rem', color: 'var(--texto-suave)', marginTop: 2 }}>
@@ -454,7 +464,7 @@ export default function Inventario() {
                 <div style={{ background: '#fff', borderRadius: 10, padding: '10px 14px' }}>
                   <div style={{ fontSize: '0.7rem', color: 'var(--texto-suave)', marginBottom: 4 }}>Costo unitario ({form.moneda_compra})</div>
                   <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--naranja)' }}>
-                    {form.moneda_compra === 'USD' ? '$' : form.moneda_compra === 'BS' ? 'Bs.' : 'COP$'} {(parseFloat(form.costo_total) / parseInt(form.cantidad || 1)).toFixed(4)}
+                    {form.moneda_compra === 'USD' ? '$' : form.moneda_compra === 'BS' ? 'Bs.' : 'COP$'} {formatoCostoUnitario(parseFloat(form.costo_total) / parseInt(form.cantidad || 1), form.moneda_compra)}
                   </div>
                 </div>
 
