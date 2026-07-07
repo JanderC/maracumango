@@ -126,8 +126,25 @@ const ModalToppings = ({ producto, onAgregar, onClose }) => {
   );
 };
 
+/* ════════════════════════════════════════════════════════════════
+   🖨️ IMPRESIÓN — PLACEHOLDER
+   Todavía no hay impresora ni API definida. Esta función es el ÚNICO
+   punto donde se debe conectar la impresión real más adelante
+   (ej: llamar a un endpoint del backend que hable con la impresora
+   térmica, usar una librería tipo qz-tray, node-thermal-printer, o
+   una API de impresión en red). Por ahora solo simula la acción
+   para no romper el flujo ni bloquear al cajero.
+   ════════════════════════════════════════════════════════════════ */
+const imprimirOrdenPreparacion = (venta) => {
+  // TODO: reemplazar este bloque cuando se defina la impresora/API.
+  // Ejemplo futuro:
+  //   await API.post('/impresion/orden', { venta_id: venta.id });
+  console.log('[Impresión pendiente de configurar] Orden de venta:', venta?.id, venta);
+  toast.info('🖨️ Impresión aún no configurada — la orden no se envió a ninguna impresora todavía', { autoClose: 3500 });
+};
+
 /* ─── Modal ticket ─── */
-const ModalTicket = ({ show, venta, onClose }) => {
+const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
   if (!show || !venta) return null;
   const simbolo = venta.moneda_pago === 'USD' ? '$' : venta.moneda_pago === 'BS' ? 'Bs.' : 'COP$';
   return (
@@ -190,9 +207,19 @@ const ModalTicket = ({ show, venta, onClose }) => {
             </div>
           )}
         </div>
-        <button className="btn-verde" style={{ width: '100%', padding: 13 }} onClick={onClose}>
-          Nueva venta
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={() => onImprimir(venta)} style={{
+            flex: 1, padding: 13, borderRadius: 14, border: '2px solid var(--naranja)',
+            background: '#fff', color: 'var(--naranja)', cursor: 'pointer',
+            fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.9rem',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+          }}>
+            🖨️ Imprimir orden
+          </button>
+          <button className="btn-verde" style={{ flex: 1, padding: 13 }} onClick={onClose}>
+            Nueva venta
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -223,6 +250,15 @@ export default function Ventas() {
   const [modalTicket, setModalTicket] = useState(false);
   const [ventaRealizada, setVentaRealizada] = useState(null);
   const [cargandoPOS, setCargandoPOS] = useState(true);
+
+  /* Switch de impresión de orden de preparación (placeholder — sin impresora aún) */
+  const [imprimirActivo, setImprimirActivo] = useState(() => {
+    const guardado = localStorage.getItem('mm_imprimir_orden');
+    return guardado === null ? true : guardado === 'true';
+  });
+  useEffect(() => {
+    localStorage.setItem('mm_imprimir_orden', String(imprimirActivo));
+  }, [imprimirActivo]);
 
   /* Historial */
   const [ventas, setVentas] = useState([]);
@@ -366,6 +402,7 @@ export default function Ventas() {
       setTipoPago('efectivo');
       setCuentaId('');
       setModalTicket(true);
+      if (imprimirActivo) imprimirOrdenPreparacion(data.venta);
     } catch (err) {
       toast.error(err.response?.data?.mensaje || 'Error procesando venta');
     } finally { setProcesando(false); }
@@ -696,6 +733,29 @@ export default function Ventas() {
                   </div>
                 </div>
 
+                {/* Switch imprimir orden de preparación */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--crema)', borderRadius: 12, marginBottom: 14 }}>
+                  <span style={{ fontSize: '1.1rem' }}>🖨️</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.82rem' }}>Imprimir orden de preparación</div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--texto-suave)' }}>Aún sin impresora conectada</div>
+                  </div>
+                  <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24 }}>
+                    <input type="checkbox" checked={imprimirActivo} onChange={e => setImprimirActivo(e.target.checked)} style={{ opacity: 0, width: 0, height: 0 }} />
+                    <span style={{
+                      position: 'absolute', cursor: 'pointer', inset: 0,
+                      background: imprimirActivo ? 'var(--naranja)' : '#ccc',
+                      borderRadius: 24, transition: '0.3s'
+                    }}>
+                      <span style={{
+                        position: 'absolute', height: 18, width: 18,
+                        left: imprimirActivo ? 22 : 3, bottom: 3,
+                        background: '#fff', borderRadius: '50%', transition: '0.3s'
+                      }} />
+                    </span>
+                  </label>
+                </div>
+
                 <button
                   onClick={confirmarVenta}
                   disabled={procesando}
@@ -855,6 +915,7 @@ export default function Ventas() {
         show={modalTicket}
         venta={ventaRealizada}
         onClose={() => setModalTicket(false)}
+        onImprimir={imprimirOrdenPreparacion}
       />
 
       {/* Modal detalle venta */}
@@ -923,6 +984,14 @@ export default function Ventas() {
                 </div>
               </div>
             )}
+
+            <button onClick={() => imprimirOrdenPreparacion(ventaDetalle)} style={{
+              width: '100%', marginTop: 16, padding: 12, borderRadius: 14,
+              border: '2px solid var(--naranja)', background: '#fff', color: 'var(--naranja)',
+              cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.85rem'
+            }}>
+              🖨️ Reimprimir orden
+            </button>
           </div>
         )}
       </Modal>
