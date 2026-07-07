@@ -39,7 +39,7 @@ const Modal = ({ show, onClose, children, titulo, maxWidth = 520 }) => {
 };
 
 /* ─── Card producto en el POS ─── */
-const ProductoCard = ({ prod, onClick }) => (
+const ProductoCard = ({ prod, onClick, hayToppings }) => (
   <div
     onClick={() => onClick(prod)}
     style={{
@@ -65,7 +65,7 @@ const ProductoCard = ({ prod, onClick }) => (
             <RiImageLine style={{ fontSize: 28, color: '#BDBDBD' }} />
           </div>
       }
-      {prod.tiene_toppings && (
+      {hayToppings && (
         <span style={{
           position: 'absolute', top: 6, left: 6,
           background: 'var(--naranja)', color: '#fff',
@@ -83,7 +83,7 @@ const ProductoCard = ({ prod, onClick }) => (
 );
 
 /* ─── Modal toppings ─── */
-const ModalToppings = ({ producto, onAgregar, onClose }) => {
+const ModalToppings = ({ producto, toppingsDisponibles, onAgregar, onClose }) => {
   const [seleccionados, setSeleccionados] = useState([]);
   if (!producto) return null;
   const toggle = (t) => setSeleccionados(s => s.find(x => x.id === t.id) ? s.filter(x => x.id !== t.id) : [...s, t]);
@@ -100,9 +100,9 @@ const ModalToppings = ({ producto, onAgregar, onClose }) => {
           <h5 style={{ fontWeight: 700, margin: 0 }}>Extras — {producto.nombre}</h5>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer' }}><RiCloseLine /></button>
         </div>
-        <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginBottom: 14 }}>Selecciona los adicionales</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-          {producto.toppings?.map(t => (
+        <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginBottom: 14 }}>Selecciona los adicionales (opcional)</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20, maxHeight: 320, overflowY: 'auto' }}>
+          {toppingsDisponibles?.map(t => (
             <button key={t.id} onClick={() => toggle(t)} style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               padding: '11px 14px', borderRadius: 12, border: '2px solid',
@@ -117,10 +117,19 @@ const ModalToppings = ({ producto, onAgregar, onClose }) => {
             </button>
           ))}
         </div>
-        <button className="btn-verde" style={{ width: '100%', padding: 13 }}
-          onClick={() => onAgregar(producto, seleccionados)}>
-          Añadir · ${Number(parseFloat(producto.precio_final_cop) + extra).toLocaleString('es-CO')}
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={() => onAgregar(producto, [])} style={{
+            flex: 1, padding: 13, borderRadius: 14, border: '2px solid #E0E0E0',
+            background: '#fff', color: 'var(--texto-suave)', cursor: 'pointer',
+            fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.85rem'
+          }}>
+            Sin extras
+          </button>
+          <button className="btn-verde" style={{ flex: 1, padding: 13 }}
+            onClick={() => onAgregar(producto, seleccionados)}>
+            Añadir · ${Number(parseFloat(producto.precio_final_cop) + extra).toLocaleString('es-CO')}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -246,6 +255,7 @@ export default function Ventas() {
 
   /* POS */
   const [productos, setProductos] = useState([]);
+  const [toppingsDisponibles, setToppingsDisponibles] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [tasas, setTasas] = useState([]);
   const [cuentas, setCuentas] = useState([]);
@@ -292,10 +302,11 @@ export default function Ventas() {
   const cargarPOS = async () => {
     setCargandoPOS(true);
     try {
-      const [r1, r2, r3] = await Promise.all([
+      const [r1, r2, r3, r4] = await Promise.all([
         API.get('/productos/activos'),
         API.get('/categorias'),
-        API.get('/tasas-cambio')
+        API.get('/tasas-cambio'),
+        API.get('/toppings')
       ]);
       setProductos(r1.data.productos);
       setCategorias(r2.data.categorias);
@@ -304,6 +315,7 @@ export default function Ventas() {
       if (ultimaBS) setTasa(ultimaBS.tasa_por_usd);
       const ultimaCOP = r3.data.tasas.find(t => t.moneda === 'COP');
       setTasaCop(ultimaCOP || null);
+      setToppingsDisponibles((r4.data.toppings || []).filter(t => t.activo !== false));
     } catch { toast.error('Error cargando productos'); }
     finally { setCargandoPOS(false); }
   };
@@ -336,12 +348,9 @@ export default function Ventas() {
   useEffect(() => { if (vista === 'historial') cargarHistorial(); }, [vista]);
 
   /* ── POS: agregar producto ── */
-  const clickProducto = async (prod) => {
-    if (prod.tiene_toppings) {
-      try {
-        const { data } = await API.get(`/productos/${prod.id}`);
-        setModalToppings(data.producto);
-      } catch { toast.error('Error cargando extras'); }
+  const clickProducto = (prod) => {
+    if (toppingsDisponibles.length > 0) {
+      setModalToppings(prod);
     } else {
       agregarItem(prod, []);
     }
@@ -558,7 +567,7 @@ export default function Ventas() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
                 {filtradosPOS.map(p => (
-                  <ProductoCard key={p.id} prod={p} onClick={clickProducto} />
+                  <ProductoCard key={p.id} prod={p} onClick={clickProducto} hayToppings={toppingsDisponibles.length > 0} />
                 ))}
                 {filtradosPOS.length === 0 && (
                   <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 48, color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
@@ -965,6 +974,7 @@ export default function Ventas() {
       {/* Modal toppings POS */}
       <ModalToppings
         producto={modalToppings}
+        toppingsDisponibles={toppingsDisponibles}
         onAgregar={agregarItem}
         onClose={() => setModalToppings(null)}
       />
