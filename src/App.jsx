@@ -18,7 +18,14 @@ import Categorias from './pages/Categorias';
 import Menu from './pages/Menu';
 
 
-const RutaProtegida = ({ children, soloAdmin }) => {
+// A dónde debe ir cada rol cuando entra a la raíz "/" o cuando le niegan una pantalla
+const destinoPorRol = (rol) => {
+  if (rol === 'admin') return '/dashboard';
+  if (rol === 'vendedor') return '/ventas';
+  return '/catalogo';
+};
+
+const RutaProtegida = ({ children, roles }) => {
   const { usuario, cargando } = useAuth();
   if (cargando) return (
     <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
@@ -26,7 +33,8 @@ const RutaProtegida = ({ children, soloAdmin }) => {
     </div>
   );
   if (!usuario) return <Navigate to="/login" />;
-  if (soloAdmin && usuario.rol !== 'admin') return <Navigate to="/catalogo" />;
+  // Si la ruta exige ciertos roles y el usuario no tiene ninguno de ellos, lo mandamos a su pantalla por defecto
+  if (roles && !roles.includes(usuario.rol)) return <Navigate to={destinoPorRol(usuario.rol)} />;
   return children;
 };
 
@@ -34,24 +42,24 @@ const AppRoutes = () => {
   const { usuario } = useAuth();
   return (
     <Routes>
-      <Route path="/login" element={!usuario ? <Login /> : <Navigate to={usuario.rol === 'admin' ? '/dashboard' : '/catalogo'} />} />
+      <Route path="/login" element={!usuario ? <Login /> : <Navigate to={destinoPorRol(usuario.rol)} />} />
 
       {/* Pantalla pública para clientes: sin sidebar, sin login */}
       <Route path="/menu" element={<Menu />} />
 
       <Route path="/" element={<RutaProtegida><Layout /></RutaProtegida>}>
-        <Route index element={<Navigate to={usuario?.rol === 'admin' ? '/dashboard' : '/catalogo'} />} />
-        <Route path="dashboard" element={<RutaProtegida soloAdmin><Dashboard /></RutaProtegida>} />
-        <Route path="inventario" element={<RutaProtegida soloAdmin><Inventario /></RutaProtegida>} />
-        <Route path="productos" element={<RutaProtegida soloAdmin><Productos /></RutaProtegida>} />
-        <Route path="ventas" element={<RutaProtegida soloAdmin><Ventas /></RutaProtegida>} />
-        <Route path="tasas-cambio" element={<RutaProtegida soloAdmin><TasasCambio /></RutaProtegida>} />
-        <Route path="cuentas-bancarias" element={<RutaProtegida soloAdmin><CuentasBancarias /></RutaProtegida>} />
-        <Route path="reportes" element={<RutaProtegida soloAdmin><Reportes /></RutaProtegida>} />
-        <Route path="usuarios" element={<RutaProtegida soloAdmin><Usuarios /></RutaProtegida>} />
+        <Route index element={<Navigate to={usuario ? destinoPorRol(usuario.rol) : '/login'} />} />
+        <Route path="dashboard" element={<RutaProtegida roles={['admin']}><Dashboard /></RutaProtegida>} />
+        <Route path="inventario" element={<RutaProtegida roles={['admin']}><Inventario /></RutaProtegida>} />
+        <Route path="productos" element={<RutaProtegida roles={['admin']}><Productos /></RutaProtegida>} />
+        <Route path="ventas" element={<RutaProtegida roles={['admin', 'vendedor']}><Ventas /></RutaProtegida>} />
+        <Route path="tasas-cambio" element={<RutaProtegida roles={['admin']}><TasasCambio /></RutaProtegida>} />
+        <Route path="cuentas-bancarias" element={<RutaProtegida roles={['admin']}><CuentasBancarias /></RutaProtegida>} />
+        <Route path="reportes" element={<RutaProtegida roles={['admin']}><Reportes /></RutaProtegida>} />
+        <Route path="usuarios" element={<RutaProtegida roles={['admin']}><Usuarios /></RutaProtegida>} />
         <Route path="catalogo" element={<RutaProtegida><Catalogo /></RutaProtegida>} />
-        <Route path="toppings" element={<RutaProtegida soloAdmin><Toppings /></RutaProtegida>} />
-        <Route path="categorias" element={<RutaProtegida soloAdmin><Categorias /></RutaProtegida>} />
+        <Route path="toppings" element={<RutaProtegida roles={['admin']}><Toppings /></RutaProtegida>} />
+        <Route path="categorias" element={<RutaProtegida roles={['admin']}><Categorias /></RutaProtegida>} />
       </Route>
       <Route path="*" element={<Navigate to="/login" />} />
     </Routes>
