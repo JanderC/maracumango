@@ -3,7 +3,7 @@ import API from '../api/axios';
 import { toast } from 'react-toastify';
 import {
   RiAddLine, RiEditLine, RiCloseLine,
-  RiToggleLine, RiShieldLine, RiUserLine
+  RiToggleLine, RiShieldLine, RiUserLine, RiShoppingCartLine
 } from 'react-icons/ri';
 
 const Modal = ({ show, onClose, children, titulo }) => {
@@ -85,6 +85,7 @@ export default function Usuarios() {
   };
 
   const admins = usuarios.filter(u => u.rol === 'admin');
+  const vendedores = usuarios.filter(u => u.rol === 'vendedor');
   const clientes = usuarios.filter(u => u.rol === 'cliente');
 
   const GrupoUsuarios = ({ titulo, lista, icono, color, bg }) => (
@@ -108,7 +109,7 @@ export default function Usuarios() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
               <div style={{
                 width: 48, height: 48, borderRadius: '50%',
-                background: u.rol === 'admin' ? 'var(--verde)' : 'var(--naranja)',
+                background: u.rol === 'admin' ? 'var(--verde)' : u.rol === 'vendedor' ? '#1565C0' : 'var(--naranja)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: '#fff', fontWeight: 800, fontSize: '1.1rem', flexShrink: 0
               }}>
@@ -171,6 +172,13 @@ export default function Usuarios() {
             bg="#E8F5E9"
           />
           <GrupoUsuarios
+            titulo="Vendedores"
+            lista={vendedores}
+            icono={<RiShoppingCartLine />}
+            color="#1565C0"
+            bg="#E3F2FD"
+          />
+          <GrupoUsuarios
             titulo="Clientes"
             lista={clientes}
             icono={<RiUserLine />}
@@ -184,17 +192,18 @@ export default function Usuarios() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
             <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>Rol *</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
               {[
-                { v: 'admin', label: '👑 Administrador', color: 'var(--verde)' },
-                { v: 'cliente', label: '🛍️ Cliente', color: 'var(--naranja)' }
+                { v: 'admin', label: '👑 Admin', color: 'var(--verde)', bg: '#E8F5E9' },
+                { v: 'vendedor', label: '🛒 Vendedor', color: '#1565C0', bg: '#E3F2FD' },
+                { v: 'cliente', label: '🛍️ Cliente', color: 'var(--naranja)', bg: '#FFF3E0' }
               ].map(r => (
                 <button key={r.v} onClick={() => setForm({ ...form, rol: r.v })} style={{
-                  padding: '11px', borderRadius: 12, border: '2px solid',
+                  padding: '11px 4px', borderRadius: 12, border: '2px solid',
                   borderColor: form.rol === r.v ? r.color : '#E0E0E0',
-                  background: form.rol === r.v ? (r.v === 'admin' ? '#E8F5E9' : '#FFF3E0') : '#fff',
+                  background: form.rol === r.v ? r.bg : '#fff',
                   color: form.rol === r.v ? r.color : 'var(--texto-suave)',
-                  fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer'
+                  fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer'
                 }}>{r.label}</button>
               ))}
             </div>
