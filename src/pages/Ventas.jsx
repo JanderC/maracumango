@@ -72,6 +72,13 @@ const ProductoCard = ({ prod, onClick, hayToppings }) => (
           borderRadius: 20, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700
         }}>+ Extras</span>
       )}
+      {prod.tiene_variantes && (
+        <span style={{
+          position: 'absolute', top: 6, right: 6,
+          background: '#1565C0', color: '#fff',
+          borderRadius: 20, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700
+        }}>🔗 Ver opciones</span>
+      )}
     </div>
     <div style={{ padding: '10px 12px' }}>
       <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: 2, lineHeight: 1.2 }}>{prod.nombre}</div>
@@ -81,6 +88,47 @@ const ProductoCard = ({ prod, onClick, hayToppings }) => (
     </div>
   </div>
 );
+
+/* ─── Modal variantes (opciones de un producto principal) ─── */
+const ModalVariantes = ({ padre, variantes, onSeleccionar, onClose }) => {
+  if (!padre) return null;
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1055,
+      background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+    }}>
+      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 440, maxHeight: '85vh', overflowY: 'auto', padding: 28 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <h5 style={{ fontWeight: 700, margin: 0 }}>{padre.nombre}</h5>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer' }}><RiCloseLine /></button>
+        </div>
+        <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginBottom: 16 }}>Elige la opción que desea el cliente</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {variantes.length === 0 ? (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
+              Este producto no tiene opciones activas todavía.
+            </div>
+          ) : variantes.map(v => (
+            <button key={v.id} onClick={() => onSeleccionar(v)} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '10px 14px', borderRadius: 12, border: '2px solid #E0E0E0',
+              background: '#fff', cursor: 'pointer', fontFamily: 'Poppins', textAlign: 'left'
+            }}>
+              <div style={{ width: 42, height: 42, borderRadius: 10, background: 'var(--crema)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {v.imagen_url ? <img src={v.imagen_url} alt={v.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <RiImageLine style={{ color: '#BDBDBD' }} />}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{v.nombre}</div>
+                <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--verde)' }}>${Number(v.precio_final_cop).toLocaleString('es-CO')}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /* ─── Modal toppings ─── */
 const ModalToppings = ({ producto, toppingsDisponibles, onAgregar, onClose }) => {
@@ -256,6 +304,8 @@ export default function Ventas() {
   /* POS */
   const [productos, setProductos] = useState([]);
   const [toppingsDisponibles, setToppingsDisponibles] = useState([]);
+  const [modalVariantes, setModalVariantes] = useState(null); // { padre, variantes }
+  const [cargandoVariantes, setCargandoVariantes] = useState(false);
   const [categorias, setCategorias] = useState([]);
   const [tasas, setTasas] = useState([]);
   const [cuentas, setCuentas] = useState([]);
@@ -348,11 +398,25 @@ export default function Ventas() {
   useEffect(() => { if (vista === 'historial') cargarHistorial(); }, [vista]);
 
   /* ── POS: agregar producto ── */
-  const clickProducto = (prod) => {
+  // Abre el modal de extras si hay toppings globales, o agrega directo si no hay
+  const seleccionarProducto = (prod) => {
     if (toppingsDisponibles.length > 0) {
       setModalToppings(prod);
     } else {
       agregarItem(prod, []);
+    }
+  };
+
+  const clickProducto = async (prod) => {
+    if (prod.tiene_variantes) {
+      setCargandoVariantes(true);
+      try {
+        const { data } = await API.get(`/productos/${prod.id}/variantes`);
+        setModalVariantes({ padre: prod, variantes: data.variantes || [] });
+      } catch { toast.error('Error cargando las opciones de este producto'); }
+      finally { setCargandoVariantes(false); }
+    } else {
+      seleccionarProducto(prod);
     }
   };
 
@@ -970,6 +1034,14 @@ export default function Ventas() {
           )}
         </div>
       )}
+
+      {/* Modal variantes POS */}
+      <ModalVariantes
+        padre={modalVariantes?.padre}
+        variantes={modalVariantes?.variantes || []}
+        onSeleccionar={(variante) => { setModalVariantes(null); seleccionarProducto(variante); }}
+        onClose={() => setModalVariantes(null)}
+      />
 
       {/* Modal toppings POS */}
       <ModalToppings

@@ -42,7 +42,8 @@ const Modal = ({ show, onClose, children, titulo }) => {
 const formVacio = {
   nombre: '', descripcion: '', categoria_id: '', inventario_id: '',
   costo_unitario_cop: '', porcentaje_ganancia: '', precio_manual_cop: '',
-  usar_precio_manual: false, tiene_toppings: false, toppings_ids: [], codigo: ''
+  usar_precio_manual: false, tiene_toppings: false, toppings_ids: [], codigo: '',
+  producto_padre_id: ''
 };
 
 export default function Productos() {
@@ -133,7 +134,8 @@ export default function Productos() {
         usar_precio_manual: p.usar_precio_manual,
         tiene_toppings: p.tiene_toppings,
         toppings_ids: p.toppings?.map(t => t.id) || [],
-        codigo: p.codigo || ''
+        codigo: p.codigo || '',
+        producto_padre_id: p.producto_padre_id || ''
       });
       setPrevistaImagen(p.imagen_url);
       setReceta(recetaData.insumos || []);
@@ -166,6 +168,10 @@ export default function Productos() {
     }
     if (!tasaCop) {
       toast.error('Debes cargar una tasa COP antes de crear productos');
+      return;
+    }
+    if (form.producto_padre_id === 'pendiente') {
+      toast.error('Selecciona a cuál producto principal pertenece esta variante');
       return;
     }
     setGuardando(true);
@@ -318,6 +324,11 @@ export default function Productos() {
 
               {/* Info */}
               <div style={{ padding: '14px 16px' }}>
+                {prod.producto_padre_id && (
+                  <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#1565C0', background: '#E3F2FD', borderRadius: 8, padding: '3px 8px', display: 'inline-block', marginBottom: 6 }}>
+                    🔗 Variante de {prod.producto_padre_nombre || '—'}
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
                   <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{prod.nombre}</div>
                   {prod.codigo && (
@@ -382,6 +393,45 @@ export default function Productos() {
 
       {/* Modal Form */}
       <Modal show={modalForm} onClose={() => setModalForm(false)} titulo={productoSel ? 'Editar producto' : 'Nuevo producto'}>
+
+        {/* Tipo de producto: principal o secundario (variante) */}
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 8, display: 'block' }}>Tipo de producto *</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: form.producto_padre_id ? 12 : 0 }}>
+            <button type="button" onClick={() => setForm({ ...form, producto_padre_id: '' })} style={{
+              padding: '11px', borderRadius: 12, border: '2px solid',
+              borderColor: !form.producto_padre_id ? 'var(--verde)' : '#E0E0E0',
+              background: !form.producto_padre_id ? '#E8F5E9' : '#fff',
+              color: !form.producto_padre_id ? 'var(--verde)' : 'var(--texto-suave)',
+              fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer'
+            }}>⭐ Producto principal</button>
+            <button type="button" onClick={() => setForm({ ...form, producto_padre_id: form.producto_padre_id || 'pendiente' })} style={{
+              padding: '11px', borderRadius: 12, border: '2px solid',
+              borderColor: form.producto_padre_id ? 'var(--naranja)' : '#E0E0E0',
+              background: form.producto_padre_id ? '#FFF3E0' : '#fff',
+              color: form.producto_padre_id ? 'var(--naranja)' : 'var(--texto-suave)',
+              fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer'
+            }}>🔗 Producto secundario (variante)</button>
+          </div>
+
+          {form.producto_padre_id && (
+            <div>
+              <label style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: 6, display: 'block', color: 'var(--texto-suave)' }}>
+                ¿De cuál producto principal es variante? *
+              </label>
+              <select className="input-mm" value={form.producto_padre_id === 'pendiente' ? '' : form.producto_padre_id}
+                onChange={e => setForm({ ...form, producto_padre_id: e.target.value })}>
+                <option value="">Selecciona el producto principal...</option>
+                {productos
+                  .filter(p => !p.producto_padre_id && p.id !== productoSel?.id)
+                  .map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+              <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)', marginTop: 6 }}>
+                En el punto de venta y el catálogo, este producto no se mostrará suelto — aparecerá dentro de la ventana de variantes del producto principal elegido.
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Imagen */}
         <div style={{ marginBottom: 20 }}>

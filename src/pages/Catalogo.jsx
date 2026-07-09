@@ -321,14 +321,18 @@ export default function Catalogo() {
   const [procesando, setProcesando] = useState(false);
   const [modalToppings, setModalToppings] = useState(null);
   const [toppingsSeleccionados, setToppingsSeleccionados] = useState([]);
+  const [toppingsDisponibles, setToppingsDisponibles] = useState([]);
+  const [modalVariantes, setModalVariantes] = useState(null); // { padre, variantes }
+  const [cargandoVariantes, setCargandoVariantes] = useState(false);
 
   const cargar = async () => {
     setCargando(true);
     try {
-      const [r1, r2, r3] = await Promise.all([
+      const [r1, r2, r3, r4] = await Promise.all([
         API.get('/productos/activos'),
         API.get('/categorias'),
-        API.get('/tasas-cambio')
+        API.get('/tasas-cambio'),
+        API.get('/toppings')
       ]);
       setProductos(r1.data.productos);
       setCategorias(r2.data.categorias);
@@ -337,21 +341,33 @@ export default function Catalogo() {
       if (ultimaBS) setTasa(ultimaBS.tasa_por_usd);
       const ultimaCOP = r3.data.tasas.find(t => t.moneda === 'COP');
       setTasaCop(ultimaCOP || null);
+      setToppingsDisponibles((r4.data.toppings || []).filter(t => t.activo !== false));
     } catch { toast.error('Error cargando catálogo'); }
     finally { setCargando(false); }
   };
 
   useEffect(() => { cargar(); }, []);
 
-  const abrirProducto = async (prod) => {
-    if (prod.tiene_toppings) {
-      try {
-        const { data } = await API.get(`/productos/${prod.id}`);
-        setModalToppings(data.producto);
-        setToppingsSeleccionados([]);
-      } catch { toast.error('Error cargando toppings'); }
+  // Abre el modal de extras si hay toppings globales, o agrega directo si no hay
+  const seleccionarProducto = (prod) => {
+    if (toppingsDisponibles.length > 0) {
+      setModalToppings(prod);
+      setToppingsSeleccionados([]);
     } else {
       agregarAlCarrito(prod, []);
+    }
+  };
+
+  const abrirProducto = async (prod) => {
+    if (prod.tiene_variantes) {
+      setCargandoVariantes(true);
+      try {
+        const { data } = await API.get(`/productos/${prod.id}/variantes`);
+        setModalVariantes({ padre: prod, variantes: data.variantes || [] });
+      } catch { toast.error('Error cargando las opciones de este producto'); }
+      finally { setCargandoVariantes(false); }
+    } else {
+      seleccionarProducto(prod);
     }
   };
 
@@ -481,6 +497,11 @@ export default function Catalogo() {
                     + Extras
                   </span>
                 )}
+                {prod.tiene_variantes && (
+                  <span style={{ position: 'absolute', top: 8, right: 8, background: '#1565C0', color: '#fff', borderRadius: 20, padding: '3px 10px', fontSize: '0.7rem', fontWeight: 700 }}>
+                    🔗 Ver opciones
+                  </span>
+                )}
               </div>
               <div style={{ padding: '12px 14px' }}>
                 <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 2 }}>{prod.nombre}</div>
@@ -549,7 +570,7 @@ export default function Catalogo() {
               Selecciona los adicionales que deseas agregar
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-              {modalToppings.toppings?.map(t => (
+              {toppingsDisponibles.map(t => (
                 <button key={t.id} onClick={() => setToppingsSeleccionados(ts =>
                   ts.find(x => x.id === t.id) ? ts.filter(x => x.id !== t.id) : [...ts, t]
                 )} style={{
@@ -566,10 +587,59 @@ export default function Catalogo() {
                 </button>
               ))}
             </div>
-            <button className="btn-verde" style={{ width: '100%', padding: '13px' }}
-              onClick={() => agregarAlCarrito(modalToppings, toppingsSeleccionados)}>
-              Añadir al carrito · ${Number(parseFloat(modalToppings.precio_final_cop) + toppingsSeleccionados.reduce((a, t) => a + (parseFloat(t.precio_cop) || 0), 0)).toLocaleString('es-CO')}
-            </button>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => agregarAlCarrito(modalToppings, [])} style={{
+                flex: 1, padding: 13, borderRadius: 14, border: '2px solid #E0E0E0',
+                background: '#fff', color: 'var(--texto-suave)', cursor: 'pointer',
+                fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.85rem'
+              }}>
+                Sin extras
+              </button>
+              <button className="btn-verde" style={{ flex: 1, padding: '13px' }}
+                onClick={() => agregarAlCarrito(modalToppings, toppingsSeleccionados)}>
+                Añadir · ${Number(parseFloat(modalToppings.precio_final_cop) + toppingsSeleccionados.reduce((a, t) => a + (parseFloat(t.precio_cop) || 0), 0)).toLocaleString('es-CO')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal variantes */}
+      {modalVariantes && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1055,
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+        }}>
+          <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 440, maxHeight: '85vh', overflowY: 'auto', padding: 28 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <h5 style={{ fontWeight: 700, margin: 0 }}>{modalVariantes.padre.nombre}</h5>
+              <button onClick={() => setModalVariantes(null)} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer' }}>
+                <RiCloseLine />
+              </button>
+            </div>
+            <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginBottom: 16 }}>Elige la opción que prefieras</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {modalVariantes.variantes.length === 0 ? (
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
+                  Este producto no tiene opciones disponibles todavía.
+                </div>
+              ) : modalVariantes.variantes.map(v => (
+                <button key={v.id} onClick={() => { setModalVariantes(null); seleccionarProducto(v); }} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 14px', borderRadius: 12, border: '2px solid #E0E0E0',
+                  background: '#fff', cursor: 'pointer', fontFamily: 'Poppins', textAlign: 'left'
+                }}>
+                  <div style={{ width: 46, height: 46, borderRadius: 10, background: 'var(--crema)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {v.imagen_url ? <img src={v.imagen_url} alt={v.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <RiImageLine style={{ color: '#BDBDBD' }} />}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.86rem' }}>{v.nombre}</div>
+                    <div style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--verde)' }}>${Number(v.precio_final_cop).toLocaleString('es-CO')}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
