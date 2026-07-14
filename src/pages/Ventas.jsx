@@ -358,7 +358,8 @@ export default function Ventas() {
   const [catActiva, setCatActiva] = useState('');
   const [carrito, setCarrito] = useState([]);
   const [modalToppings, setModalToppings] = useState(null);
-  const [modalToppingsCarritoIdx, setModalToppingsCarritoIdx] = useState(null); // idx del item del carrito que se está editando (null = modal es para "agregar nuevo")
+  const [toppingsExpandidoIdx, setToppingsExpandidoIdx] = useState(null); // idx del item del carrito con el split de toppings abierto
+  const [toppingsCache, setToppingsCache] = useState({}); // { [productoId]: toppings[] } — cache para no repetir el fetch
   const [moneda, setMoneda] = useState('COP');
   const [tasa, setTasa] = useState(''); // tasa BS/USD, solo aplica si moneda === 'BS'
   const [tasaCop, setTasaCop] = useState(null); // tasa COP/USD vigente (objeto tasas_cambio)
@@ -506,34 +507,36 @@ export default function Ventas() {
     toast.success(`${prod.nombre} añadido`, { autoClose: 800 });
   };
 
-  // Abre el modal de toppings para EDITAR un item que ya está en el carrito
-  const abrirToppingsCarrito = async (idx) => {
+  // Despliega/colapsa el split de toppings de un item YA en el carrito (sin modal)
+  const toggleToppingsCarrito = async (idx) => {
+    if (toppingsExpandidoIdx === idx) { setToppingsExpandidoIdx(null); return; }
     const item = carrito[idx];
-    setCargandoToppingsProducto(true);
-    try {
-      const { data } = await API.get(`/productos/${item.id}`);
-      setToppingsProductoActual(data.producto?.toppings || []);
-      setModalToppingsCarritoIdx(idx);
-    } catch {
-      toast.error('Error cargando toppings del producto');
-    } finally {
-      setCargandoToppingsProducto(false);
+    if (!toppingsCache[item.id]) {
+      setCargandoToppingsProducto(true);
+      try {
+        const { data } = await API.get(`/productos/${item.id}`);
+        setToppingsCache(prev => ({ ...prev, [item.id]: data.producto?.toppings || [] }));
+      } catch {
+        toast.error('Error cargando toppings del producto');
+        return;
+      } finally {
+        setCargandoToppingsProducto(false);
+      }
     }
+    setToppingsExpandidoIdx(idx);
   };
 
-  // Callback único del modal de toppings: decide si agrega un item nuevo o edita uno existente
-  const confirmarToppingsModal = (producto, tops) => {
-    if (modalToppingsCarritoIdx !== null) {
-      setCarrito(c => {
-        const n = [...c];
-        const key = `${producto.id}-${tops.map(t => t.id).join(',')}`;
-        n[modalToppingsCarritoIdx] = { ...n[modalToppingsCarritoIdx], toppingsSeleccionados: tops, _key: key };
-        return n;
-      });
-      setModalToppingsCarritoIdx(null);
-    } else {
-      agregarItem(producto, tops);
-    }
+  // Marca/desmarca un topping directamente sobre el item del carrito — suma o resta del precio al instante
+  const toggleToppingEnItem = (idx, topping) => {
+    setCarrito(c => {
+      const n = [...c];
+      const actuales = n[idx].toppingsSeleccionados || [];
+      const yaEsta = actuales.some(t => t.id === topping.id);
+      const nuevos = yaEsta ? actuales.filter(t => t.id !== topping.id) : [...actuales, topping];
+      const key = `${n[idx].id}-${nuevos.map(t => t.id).join(',')}`;
+      n[idx] = { ...n[idx], toppingsSeleccionados: nuevos, _key: key };
+      return n;
+    });
   };
 
   const cambiarCantidad = (idx, delta) => {
@@ -844,17 +847,59 @@ export default function Ventas() {
                           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem'
                         }}><RiAddLine /></button>
                         {item.tiene_toppings && (
-                          <button onClick={() => abrirToppingsCarrito(idx)} style={{
+                          <button onClick={() => toggleToppingsCarrito(idx)} style={{
                             marginLeft: 4, background: '#FFF3E0', border: 'none', borderRadius: 8,
                             padding: '5px 10px', color: 'var(--naranja)', fontFamily: 'Poppins',
-                            fontWeight: 700, fontSize: '0.7rem', cursor: 'pointer', whiteSpace: 'nowrap'
+                            fontWeight: 700, fontSize: '0.7rem', cursor: 'pointer', whiteSpace: 'nowrap',
+                            display: 'flex', alignItems: 'center', gap: 4
                           }}>
-                            + Toppings
+                            Toppings {toppingsExpandidoIdx === idx ? '▲' : '▼'}
                           </button>
                         )}
                       </div>
                       <span style={{ fontWeight: 700, color: 'var(--verde)', fontSize: '0.9rem' }}>${Number(subtotal).toLocaleString('es-CO')}</span>
                     </div>
+
+                    {/* Split desplegable de toppings — directo aquí en el carrito, sin modal */}
+                    {toppingsExpandidoIdx === idx && (
+                      <div style={{ marginTop: 8, border: '1px solid #F0F0F0', borderRadius: 10, overflow: 'hidden' }}>
+                        {(toppingsCache[item.id] || []).length === 0 ? (
+                          <div style={{ padding: 10, fontSize: '0.75rem', color: 'var(--texto-suave)', textAlign: 'center' }}>
+                            Este producto no tiene toppings configurados.
+                          </div>
+                        ) : (toppingsCache[item.id] || []).map((t, ti) => {
+                          const marcado = (item.toppingsSeleccionados || []).some(x => x.id === t.id);
+                          return (
+                            <div
+                              key={t.id}
+                              role="button"
+                              onClick={() => toggleToppingEnItem(idx, t)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+                                borderTop: ti === 0 ? 'none' : '1px solid #F5F5F5',
+                                background: marcado ? '#FFF3E0' : '#fff', cursor: 'pointer'
+                              }}
+                            >
+                              <span style={{
+                                width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                                border: '2px solid', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                borderColor: marcado ? 'var(--naranja)' : '#CCC',
+                                background: marcado ? 'var(--naranja)' : '#fff',
+                                color: '#fff', fontSize: '0.6rem'
+                              }}>
+                                {marcado && '✓'}
+                              </span>
+                              <span style={{ flex: 1, fontSize: '0.76rem', fontWeight: 600, color: marcado ? 'var(--naranja)' : 'var(--texto-suave)' }}>
+                                {t.nombre}
+                              </span>
+                              <span style={{ fontSize: '0.74rem', fontWeight: 700, color: marcado ? 'var(--naranja)' : '#9E9E9E' }}>
+                                {parseFloat(t.precio_cop) > 0 ? `+$${Number(t.precio_cop).toLocaleString('es-CO')}` : 'Gratis'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1191,15 +1236,15 @@ export default function Ventas() {
         onClose={() => setModalVariantes(null)}
       />
 
-      {/* Modal toppings POS (agregar nuevo o editar toppings de un item ya en el carrito) */}
+      {/* Modal toppings POS — solo para elegir toppings al AGREGAR un producto nuevo al carrito.
+          Para editar los toppings de un item que ya está en el carrito, se usa el split
+          desplegable inline dentro del propio "Pedido del cliente" (sin modal). */}
       <ModalToppings
-        producto={modalToppingsCarritoIdx !== null ? carrito[modalToppingsCarritoIdx] : modalToppings}
+        producto={modalToppings}
         toppingsDisponibles={toppingsProductoActual}
-        seleccionInicial={modalToppingsCarritoIdx !== null ? (carrito[modalToppingsCarritoIdx]?.toppingsSeleccionados || []) : []}
-        modo={modalToppingsCarritoIdx !== null ? 'editar' : 'agregar'}
-        key={modalToppingsCarritoIdx !== null ? `carrito-${modalToppingsCarritoIdx}` : (modalToppings ? `nuevo-${modalToppings.id}` : 'cerrado')}
-        onConfirmar={confirmarToppingsModal}
-        onClose={() => { setModalToppings(null); setModalToppingsCarritoIdx(null); }}
+        key={modalToppings ? `nuevo-${modalToppings.id}` : 'cerrado'}
+        onConfirmar={agregarItem}
+        onClose={() => setModalToppings(null)}
       />
 
       {/* Ticket */}
