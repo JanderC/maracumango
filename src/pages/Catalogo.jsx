@@ -331,14 +331,18 @@ export default function Catalogo() {
   const [cargandoToppingsProducto, setCargandoToppingsProducto] = useState(false);
   const [modalVariantes, setModalVariantes] = useState(null); // { padre, variantes }
   const [cargandoVariantes, setCargandoVariantes] = useState(false);
+  const [carpetas, setCarpetas] = useState([]);
+  const [modalCarpeta, setModalCarpeta] = useState(null); // { carpeta, productos }
+  const [cargandoCarpeta, setCargandoCarpeta] = useState(false);
 
   const cargar = async () => {
     setCargando(true);
     try {
-      const [r1, r2, r3] = await Promise.all([
+      const [r1, r2, r3, r4] = await Promise.all([
         API.get('/productos/activos'),
         API.get('/categorias'),
-        API.get('/tasas-cambio')
+        API.get('/tasas-cambio'),
+        API.get('/carpetas/activas')
       ]);
       setProductos(r1.data.productos);
       setCategorias(r2.data.categorias);
@@ -347,11 +351,22 @@ export default function Catalogo() {
       if (ultimaBS) setTasa(ultimaBS.tasa_por_usd);
       const ultimaCOP = r3.data.tasas.find(t => t.moneda === 'COP');
       setTasaCop(ultimaCOP || null);
+      setCarpetas(r4.data.carpetas || []);
     } catch { toast.error('Error cargando catálogo'); }
     finally { setCargando(false); }
   };
 
   useEffect(() => { cargar(); }, []);
+
+  // Abre una carpeta y trae los productos que contiene
+  const abrirCarpeta = async (carpeta) => {
+    setCargandoCarpeta(true);
+    try {
+      const { data } = await API.get(`/carpetas/${carpeta.id}`);
+      setModalCarpeta({ carpeta: data.carpeta, productos: data.productos || [] });
+    } catch { toast.error('Error cargando la carpeta'); }
+    finally { setCargandoCarpeta(false); }
+  };
 
   // Abre el modal de toppings solo si ESTE producto tiene toppings propios asignados
   const seleccionarProducto = async (prod) => {
@@ -453,6 +468,10 @@ export default function Catalogo() {
     return matchBusqueda && matchCat;
   });
 
+  const carpetasFiltradas = categoriaActiva ? [] : carpetas.filter(c =>
+    c.nombre.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
   return (
     <div>
       {/* Header */}
@@ -498,6 +517,30 @@ export default function Catalogo() {
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+          {carpetasFiltradas.map(carpeta => (
+            <div key={`carpeta-${carpeta.id}`} className="card-mm" style={{ padding: 0, overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s', border: '2px solid #F3E5F5' }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.06)'; }}
+              onClick={() => abrirCarpeta(carpeta)}
+            >
+              <div style={{ height: 150, background: 'var(--crema)', position: 'relative', overflow: 'hidden' }}>
+                {carpeta.imagen_url ? (
+                  <img src={carpeta.imagen_url} alt={carpeta.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <RiImageLine style={{ fontSize: 36, color: '#BDBDBD' }} />
+                  </div>
+                )}
+                <span style={{ position: 'absolute', top: 8, left: 8, background: '#6A1B9A', color: '#fff', borderRadius: 20, padding: '3px 10px', fontSize: '0.7rem', fontWeight: 700 }}>
+                  📁 {carpeta.total_productos} opciones
+                </span>
+              </div>
+              <div style={{ padding: '12px 14px' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 2 }}>{carpeta.nombre}</div>
+                <div style={{ fontSize: '0.74rem', color: '#6A1B9A', fontWeight: 600 }}>Ver opciones →</div>
+              </div>
+            </div>
+          ))}
           {filtrados.map(prod => (
             <div key={prod.id} className="card-mm" style={{ padding: 0, overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.2s, box-shadow 0.2s' }}
               onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.12)'; }}
@@ -656,6 +699,46 @@ export default function Catalogo() {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600, fontSize: '0.86rem' }}>{v.nombre}</div>
                     <div style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--verde)' }}>${Number(v.precio_final_cop).toLocaleString('es-CO')}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal contenido de carpeta */}
+      {modalCarpeta && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1055,
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
+        }}>
+          <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 440, maxHeight: '85vh', overflowY: 'auto', padding: 28 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <h5 style={{ fontWeight: 700, margin: 0 }}>📁 {modalCarpeta.carpeta.nombre}</h5>
+              <button onClick={() => setModalCarpeta(null)} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer' }}>
+                <RiCloseLine />
+              </button>
+            </div>
+            <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginBottom: 16 }}>Elige la opción que prefieras</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {modalCarpeta.productos.length === 0 ? (
+                <div style={{ padding: 20, textAlign: 'center', color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
+                  Esta carpeta no tiene productos disponibles todavía.
+                </div>
+              ) : modalCarpeta.productos.map(p => (
+                <button key={p.id} onClick={() => { setModalCarpeta(null); seleccionarProducto(p); }} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 14px', borderRadius: 12, border: '2px solid #E0E0E0',
+                  background: '#fff', cursor: 'pointer', fontFamily: 'Poppins', textAlign: 'left'
+                }}>
+                  <div style={{ width: 46, height: 46, borderRadius: 10, background: 'var(--crema)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {p.imagen_url ? <img src={p.imagen_url} alt={p.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <RiImageLine style={{ color: '#BDBDBD' }} />}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.86rem' }}>{p.nombre}</div>
+                    <div style={{ fontWeight: 800, fontSize: '0.88rem', color: 'var(--verde)' }}>${Number(p.precio_final_cop).toLocaleString('es-CO')}</div>
                   </div>
                 </button>
               ))}

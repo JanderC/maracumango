@@ -89,6 +89,44 @@ const ProductoCard = ({ prod, onClick, hayToppings }) => (
   </div>
 );
 
+/* ─── Card de carpeta en el POS ─── */
+const CarpetaCard = ({ carpeta, onClick }) => (
+  <div
+    onClick={() => onClick(carpeta)}
+    style={{
+      background: '#fff', borderRadius: 14, overflow: 'hidden',
+      cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '2px solid #F3E5F5'
+    }}
+    onMouseEnter={e => {
+      e.currentTarget.style.transform = 'translateY(-3px)';
+      e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.12)';
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.transform = 'translateY(0)';
+      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
+    }}
+  >
+    <div style={{ height: 100, background: 'var(--crema)', position: 'relative', overflow: 'hidden' }}>
+      {carpeta.imagen_url
+        ? <img src={carpeta.imagen_url} alt={carpeta.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <RiImageLine style={{ fontSize: 28, color: '#BDBDBD' }} />
+          </div>
+      }
+      <span style={{
+        position: 'absolute', top: 6, left: 6,
+        background: '#6A1B9A', color: '#fff',
+        borderRadius: 20, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700
+      }}>📁 {carpeta.total_productos}</span>
+    </div>
+    <div style={{ padding: '10px 12px' }}>
+      <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: 2, lineHeight: 1.2 }}>{carpeta.nombre}</div>
+      <div style={{ fontWeight: 700, fontSize: '0.78rem', color: '#6A1B9A' }}>Ver opciones →</div>
+    </div>
+  </div>
+);
+
 /* ─── Modal variantes (opciones de un producto principal) ─── */
 const ModalVariantes = ({ padre, variantes, onSeleccionar, onClose }) => {
   if (!padre) return null;
@@ -310,6 +348,9 @@ export default function Ventas() {
   const [cargandoVariantes, setCargandoVariantes] = useState(false);
   const [cargandoToppingsProducto, setCargandoToppingsProducto] = useState(false);
   const [toppingsProductoActual, setToppingsProductoActual] = useState([]);
+  const [carpetas, setCarpetas] = useState([]);
+  const [modalCarpeta, setModalCarpeta] = useState(null); // { carpeta, productos }
+  const [cargandoCarpeta, setCargandoCarpeta] = useState(false);
   const [categorias, setCategorias] = useState([]);
   const [tasas, setTasas] = useState([]);
   const [cuentas, setCuentas] = useState([]);
@@ -356,10 +397,11 @@ export default function Ventas() {
   const cargarPOS = async () => {
     setCargandoPOS(true);
     try {
-      const [r1, r2, r3] = await Promise.all([
+      const [r1, r2, r3, r4] = await Promise.all([
         API.get('/productos/activos'),
         API.get('/categorias'),
-        API.get('/tasas-cambio')
+        API.get('/tasas-cambio'),
+        API.get('/carpetas/activas')
       ]);
       setProductos(r1.data.productos);
       setCategorias(r2.data.categorias);
@@ -368,6 +410,7 @@ export default function Ventas() {
       if (ultimaBS) setTasa(ultimaBS.tasa_por_usd);
       const ultimaCOP = r3.data.tasas.find(t => t.moneda === 'COP');
       setTasaCop(ultimaCOP || null);
+      setCarpetas(r4.data.carpetas || []);
     } catch { toast.error('Error cargando productos'); }
     finally { setCargandoPOS(false); }
   };
@@ -400,6 +443,16 @@ export default function Ventas() {
   useEffect(() => { if (vista === 'historial') cargarHistorial(); }, [vista]);
 
   /* ── POS: agregar producto ── */
+  // Abre una carpeta y trae los productos que contiene
+  const abrirCarpeta = async (carpeta) => {
+    setCargandoCarpeta(true);
+    try {
+      const { data } = await API.get(`/carpetas/${carpeta.id}`);
+      setModalCarpeta({ carpeta: data.carpeta, productos: data.productos || [] });
+    } catch { toast.error('Error cargando la carpeta'); }
+    finally { setCargandoCarpeta(false); }
+  };
+
   // Abre el modal de toppings solo si ESTE producto tiene toppings propios asignados
   const seleccionarProducto = async (prod) => {
     if (prod.tiene_toppings) {
@@ -576,6 +629,10 @@ export default function Ventas() {
     return mb && mc;
   });
 
+  const carpetasFiltradasPOS = catActiva ? [] : carpetas.filter(c =>
+    c.nombre.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
   /* ════ RENDER ════ */
   return (
     <div>
@@ -647,10 +704,13 @@ export default function Ventas() {
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+                {carpetasFiltradasPOS.map(c => (
+                  <CarpetaCard key={`carpeta-${c.id}`} carpeta={c} onClick={abrirCarpeta} />
+                ))}
                 {filtradosPOS.map(p => (
                   <ProductoCard key={p.id} prod={p} onClick={clickProducto} hayToppings={!!p.tiene_toppings} />
                 ))}
-                {filtradosPOS.length === 0 && (
+                {filtradosPOS.length === 0 && carpetasFiltradasPOS.length === 0 && (
                   <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 48, color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
                     Sin productos
                   </div>
@@ -1063,6 +1123,14 @@ export default function Ventas() {
         variantes={modalVariantes?.variantes || []}
         onSeleccionar={(variante) => { setModalVariantes(null); seleccionarProducto(variante); }}
         onClose={() => setModalVariantes(null)}
+      />
+
+      {/* Modal contenido de carpeta POS (reutiliza el mismo look de variantes) */}
+      <ModalVariantes
+        padre={modalCarpeta ? { nombre: `📁 ${modalCarpeta.carpeta.nombre}` } : null}
+        variantes={modalCarpeta?.productos || []}
+        onSeleccionar={(prod) => { setModalCarpeta(null); seleccionarProducto(prod); }}
+        onClose={() => setModalCarpeta(null)}
       />
 
       {/* Modal toppings POS */}

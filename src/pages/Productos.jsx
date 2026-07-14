@@ -43,8 +43,10 @@ const formVacio = {
   nombre: '', descripcion: '', categoria_id: '', inventario_id: '',
   costo_unitario_cop: '', porcentaje_ganancia: '', precio_manual_cop: '',
   usar_precio_manual: false, tiene_toppings: false, toppings_ids: [], codigo: '',
-  producto_padre_id: ''
+  producto_padre_id: '', carpeta_id: ''
 };
+
+const carpetaVacia = { nombre: '' };
 
 export default function Productos() {
   const [productos, setProductos] = useState([]);
@@ -63,6 +65,15 @@ export default function Productos() {
   // ── Receta de insumos ──
   const [receta, setReceta] = useState([]); // [{ inventario_id, cantidad_requerida, unidad, insumo_nombre }]
   const [nuevoInsumo, setNuevoInsumo] = useState({ inventario_id: '', cantidad_requerida: '', unidad: '' });
+
+  // ── Carpetas (agrupador liviano de productos) ──
+  const [carpetas, setCarpetas] = useState([]);
+  const [modalCarpetas, setModalCarpetas] = useState(false);
+  const [carpetaSel, setCarpetaSel] = useState(null);
+  const [carpetaForm, setCarpetaForm] = useState(carpetaVacia);
+  const [carpetaImagen, setCarpetaImagen] = useState(null);
+  const [carpetaPrevista, setCarpetaPrevista] = useState(null);
+  const [guardandoCarpeta, setGuardandoCarpeta] = useState(false);
 
   // Precio final en COP (manual o calculado por porcentaje de ganancia)
   const precioCalculadoCop = () => {
@@ -85,18 +96,20 @@ export default function Productos() {
   const cargar = async () => {
     setCargando(true);
     try {
-      const [r1, r2, r3, r4, r5] = await Promise.all([
+      const [r1, r2, r3, r4, r5, r6] = await Promise.all([
         API.get('/productos'),
         API.get('/categorias'),
         API.get('/inventario'),
         API.get('/toppings'),
-        API.get('/tasas-cambio/activa/COP').catch(() => null)
+        API.get('/tasas-cambio/activa/COP').catch(() => null),
+        API.get('/carpetas')
       ]);
       setProductos(r1.data.productos);
       setCategorias(r2.data.categorias);
       setInventario(r3.data.inventario);
       setToppings(r4.data.toppings);
       setTasaCop(r5?.data?.tasa || null);
+      setCarpetas(r6.data.carpetas || []);
     } catch { toast.error('Error cargando productos'); }
     finally { setCargando(false); }
   };
@@ -135,7 +148,8 @@ export default function Productos() {
         tiene_toppings: p.tiene_toppings,
         toppings_ids: p.toppings?.map(t => t.id) || [],
         codigo: p.codigo || '',
-        producto_padre_id: p.producto_padre_id || ''
+        producto_padre_id: p.producto_padre_id || '',
+        carpeta_id: p.carpeta_id || ''
       });
       setPrevistaImagen(p.imagen_url);
       setReceta(recetaData.insumos || []);
@@ -245,6 +259,73 @@ export default function Productos() {
     }
   };
 
+  // ── Carpetas ──
+  const abrirCrearCarpeta = () => {
+    setCarpetaSel(null);
+    setCarpetaForm(carpetaVacia);
+    setCarpetaImagen(null);
+    setCarpetaPrevista(null);
+  };
+
+  const abrirEditarCarpeta = (c) => {
+    setCarpetaSel(c);
+    setCarpetaForm({ nombre: c.nombre });
+    setCarpetaImagen(null);
+    setCarpetaPrevista(c.imagen_url);
+  };
+
+  const handleCarpetaImagen = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error('La imagen no puede superar 5MB'); return; }
+    setCarpetaImagen(file);
+    setCarpetaPrevista(URL.createObjectURL(file));
+  };
+
+  const guardarCarpeta = async () => {
+    if (!carpetaForm.nombre) {
+      toast.error('El nombre de la carpeta es requerido');
+      return;
+    }
+    setGuardandoCarpeta(true);
+    try {
+      const fd = new FormData();
+      fd.append('nombre', carpetaForm.nombre);
+      if (carpetaImagen) fd.append('imagen', carpetaImagen);
+
+      if (carpetaSel) {
+        await API.put(`/carpetas/${carpetaSel.id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        toast.success('Carpeta actualizada');
+      } else {
+        await API.post('/carpetas', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        toast.success('Carpeta creada');
+      }
+      abrirCrearCarpeta();
+      cargar();
+    } catch (err) {
+      toast.error(err.response?.data?.mensaje || 'Error guardando la carpeta');
+    } finally { setGuardandoCarpeta(false); }
+  };
+
+  const toggleActivoCarpeta = async (c) => {
+    try {
+      await API.patch(`/carpetas/${c.id}/toggle`);
+      cargar();
+    } catch { toast.error('Error cambiando estado de la carpeta'); }
+  };
+
+  const eliminarCarpeta = async (id) => {
+    if (!window.confirm('¿Eliminar esta carpeta? Los productos dentro quedarán sueltos en el catálogo.')) return;
+    try {
+      await API.delete(`/carpetas/${id}`);
+      toast.success('Carpeta eliminada');
+      if (carpetaSel?.id === id) abrirCrearCarpeta();
+      cargar();
+    } catch (err) {
+      toast.error(err.response?.data?.mensaje || 'No se pudo eliminar la carpeta');
+    }
+  };
+
   const filtrados = productos.filter(p =>
     p.nombre.toLowerCase().includes((busqueda || '').toLowerCase())
   );
@@ -259,9 +340,19 @@ export default function Productos() {
             {productos.length} productos · {productos.filter(p => p.activo).length} activos
           </p>
         </div>
-        <button className="btn-verde" onClick={abrirCrear} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <RiAddLine /> Nuevo producto
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={() => { abrirCrearCarpeta(); setModalCarpetas(true); }} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: '#fff', border: '2px solid #E0E0E0', borderRadius: 10,
+            padding: '10px 16px', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.85rem',
+            color: 'var(--texto-suave)', cursor: 'pointer'
+          }}>
+            📁 Carpetas
+          </button>
+          <button className="btn-verde" onClick={abrirCrear} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <RiAddLine /> Nuevo producto
+          </button>
+        </div>
       </div>
 
       {/* Búsqueda */}
@@ -327,6 +418,11 @@ export default function Productos() {
                 {prod.producto_padre_id && (
                   <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#1565C0', background: '#E3F2FD', borderRadius: 8, padding: '3px 8px', display: 'inline-block', marginBottom: 6 }}>
                     🔗 Variante de {prod.producto_padre_nombre || '—'}
+                  </div>
+                )}
+                {prod.carpeta_id && (
+                  <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#6A1B9A', background: '#F3E5F5', borderRadius: 8, padding: '3px 8px', display: 'inline-block', marginBottom: 6, marginLeft: prod.producto_padre_id ? 6 : 0 }}>
+                    📁 {prod.carpeta_nombre || '—'}
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
@@ -431,6 +527,24 @@ export default function Productos() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Carpeta (agrupador visual, opcional e independiente del sistema de variantes) */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <label style={{ fontSize: '0.82rem', fontWeight: 600, display: 'block' }}>📁 Carpeta (opcional)</label>
+            <button type="button" onClick={() => { abrirCrearCarpeta(); setModalCarpetas(true); }} style={{
+              background: 'none', border: 'none', color: 'var(--verde)', fontWeight: 700,
+              fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Poppins'
+            }}>+ Nueva carpeta</button>
+          </div>
+          <select className="input-mm" value={form.carpeta_id} onChange={e => setForm({ ...form, carpeta_id: e.target.value })}>
+            <option value="">Sin carpeta (se muestra suelto)</option>
+            {carpetas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </select>
+          <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)', marginTop: 6 }}>
+            Si eliges una carpeta, este producto no aparecerá suelto en el catálogo/POS — aparecerá dentro de esa carpeta al hacer clic en ella. La carpeta es solo un agrupador visual (nombre + imagen), no tiene inventario ni costo propio.
+          </div>
         </div>
 
         {/* Imagen */}
@@ -720,6 +834,74 @@ export default function Productos() {
             {guardando ? <span className="spinner-border spinner-border-sm me-2" /> : null}
             {guardando ? 'Guardando...' : productoSel ? 'Actualizar' : 'Crear producto'}
           </button>
+        </div>
+      </Modal>
+
+      {/* Modal gestión de carpetas */}
+      <Modal show={modalCarpetas} onClose={() => setModalCarpetas(false)} titulo="📁 Carpetas de productos">
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'flex-start' }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: 12, background: 'var(--crema)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            overflow: 'hidden', flexShrink: 0, position: 'relative'
+          }}>
+            {carpetaPrevista ? (
+              <img src={carpetaPrevista} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <RiImageLine style={{ fontSize: 26, color: '#BDBDBD' }} />
+            )}
+            <input type="file" accept="image/*" onChange={handleCarpetaImagen}
+              style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
+          </div>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <input className="input-mm" placeholder="Nombre de la carpeta (ej: Maracumango)"
+              value={carpetaForm.nombre}
+              onChange={e => setCarpetaForm({ nombre: e.target.value })} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn-verde" onClick={guardarCarpeta} disabled={guardandoCarpeta} style={{ flex: 1 }}>
+                {guardandoCarpeta ? 'Guardando...' : carpetaSel ? 'Actualizar carpeta' : 'Crear carpeta'}
+              </button>
+              {carpetaSel && (
+                <button onClick={abrirCrearCarpeta} style={{
+                  padding: '10px 14px', borderRadius: 10, border: '1px solid #E0E0E0',
+                  background: '#fff', cursor: 'pointer', fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.8rem'
+                }}>Cancelar</button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ borderTop: '1px solid #F0F0F0', paddingTop: 14 }}>
+          {carpetas.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 20, color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
+              Todavía no has creado ninguna carpeta.
+            </div>
+          ) : carpetas.map(c => (
+            <div key={c.id} style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '10px 8px',
+              borderBottom: '1px solid #F5F5F5', opacity: c.activo ? 1 : 0.5
+            }}>
+              <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--crema)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {c.imagen_url ? <img src={c.imagen_url} alt={c.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <RiImageLine style={{ color: '#BDBDBD' }} />}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.86rem' }}>{c.nombre}</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)' }}>{c.total_productos || 0} producto(s) dentro</div>
+              </div>
+              <button onClick={() => toggleActivoCarpeta(c)} title={c.activo ? 'Desactivar' : 'Activar'}
+                style={{ background: c.activo ? '#FFF3E0' : '#E8F5E9', border: 'none', borderRadius: 8, padding: '6px 8px', color: c.activo ? '#E65100' : '#1B5E20', cursor: 'pointer' }}>
+                <RiToggleLine />
+              </button>
+              <button onClick={() => abrirEditarCarpeta(c)} title="Editar"
+                style={{ background: '#E3F2FD', border: 'none', borderRadius: 8, padding: '6px 8px', color: '#1565C0', cursor: 'pointer' }}>
+                <RiEditLine />
+              </button>
+              <button onClick={() => eliminarCarpeta(c.id)} title="Eliminar"
+                style={{ background: '#FFEBEE', border: 'none', borderRadius: 8, padding: '6px 8px', color: '#C62828', cursor: 'pointer' }}>
+                <RiDeleteBinLine />
+              </button>
+            </div>
+          ))}
         </div>
       </Modal>
     </div>
