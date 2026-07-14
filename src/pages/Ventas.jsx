@@ -70,7 +70,7 @@ const ProductoCard = ({ prod, onClick, hayToppings }) => (
           position: 'absolute', top: 6, left: 6,
           background: 'var(--naranja)', color: '#fff',
           borderRadius: 20, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700
-        }}>+ Extras</span>
+        }}>+ Toppings</span>
       )}
       {prod.tiene_variantes && (
         <span style={{
@@ -145,7 +145,7 @@ const ModalToppings = ({ producto, toppingsDisponibles, onAgregar, onClose }) =>
     }}>
       <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 400, padding: 28 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h5 style={{ fontWeight: 700, margin: 0 }}>Extras — {producto.nombre}</h5>
+          <h5 style={{ fontWeight: 700, margin: 0 }}>Toppings — {producto.nombre}</h5>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer' }}><RiCloseLine /></button>
         </div>
         <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginBottom: 14 }}>Selecciona los adicionales (opcional)</p>
@@ -171,7 +171,7 @@ const ModalToppings = ({ producto, toppingsDisponibles, onAgregar, onClose }) =>
             background: '#fff', color: 'var(--texto-suave)', cursor: 'pointer',
             fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.85rem'
           }}>
-            Sin extras
+            Sin toppings
           </button>
           <button className="btn-verde" style={{ flex: 1, padding: 13 }}
             onClick={() => onAgregar(producto, seleccionados)}>
@@ -221,17 +221,20 @@ const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
 
         <div style={{ background: 'var(--crema)', borderRadius: 14, padding: '16px 20px', marginBottom: 20, textAlign: 'left' }}>
           {venta.items?.map((item, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '0.85rem' }}>
-              <div>
-                <span style={{ fontWeight: 600 }}>{item.producto_nombre}</span>
-                <span style={{ color: 'var(--texto-suave)' }}> x{item.cantidad}</span>
-                {item.toppings?.length > 0 && (
-                  <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)' }}>
-                    + {item.toppings.map(t => t.topping_nombre).join(', ')}
-                  </div>
-                )}
+            <div key={i} style={{ marginBottom: 8, fontSize: '0.85rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <div>
+                  <span style={{ fontWeight: 600 }}>{item.producto_nombre}</span>
+                  <span style={{ color: 'var(--texto-suave)' }}> x{item.cantidad}</span>
+                </div>
+                <span style={{ fontWeight: 700 }}>${Number(item.subtotal_cop).toLocaleString('es-CO')}</span>
               </div>
-              <span style={{ fontWeight: 700 }}>${Number(item.subtotal_cop).toLocaleString('es-CO')}</span>
+              {item.toppings?.length > 0 && item.toppings.map((t, ti) => (
+                <div key={ti} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--texto-suave)', marginTop: 2 }}>
+                  <span>+ {t.topping_nombre}</span>
+                  <span>{parseFloat(t.precio_cop) > 0 ? `$${Number(t.precio_cop).toLocaleString('es-CO')}` : 'Gratis'}</span>
+                </div>
+              ))}
             </div>
           ))}
           <div style={{ borderTop: '1px dashed #E0E0E0', marginTop: 10, paddingTop: 10 }}>
@@ -303,9 +306,10 @@ export default function Ventas() {
 
   /* POS */
   const [productos, setProductos] = useState([]);
-  const [toppingsDisponibles, setToppingsDisponibles] = useState([]);
   const [modalVariantes, setModalVariantes] = useState(null); // { padre, variantes }
   const [cargandoVariantes, setCargandoVariantes] = useState(false);
+  const [cargandoToppingsProducto, setCargandoToppingsProducto] = useState(false);
+  const [toppingsProductoActual, setToppingsProductoActual] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [tasas, setTasas] = useState([]);
   const [cuentas, setCuentas] = useState([]);
@@ -352,11 +356,10 @@ export default function Ventas() {
   const cargarPOS = async () => {
     setCargandoPOS(true);
     try {
-      const [r1, r2, r3, r4] = await Promise.all([
+      const [r1, r2, r3] = await Promise.all([
         API.get('/productos/activos'),
         API.get('/categorias'),
-        API.get('/tasas-cambio'),
-        API.get('/toppings')
+        API.get('/tasas-cambio')
       ]);
       setProductos(r1.data.productos);
       setCategorias(r2.data.categorias);
@@ -365,7 +368,6 @@ export default function Ventas() {
       if (ultimaBS) setTasa(ultimaBS.tasa_por_usd);
       const ultimaCOP = r3.data.tasas.find(t => t.moneda === 'COP');
       setTasaCop(ultimaCOP || null);
-      setToppingsDisponibles((r4.data.toppings || []).filter(t => t.activo !== false));
     } catch { toast.error('Error cargando productos'); }
     finally { setCargandoPOS(false); }
   };
@@ -398,10 +400,25 @@ export default function Ventas() {
   useEffect(() => { if (vista === 'historial') cargarHistorial(); }, [vista]);
 
   /* ── POS: agregar producto ── */
-  // Abre el modal de extras si hay toppings globales, o agrega directo si no hay
-  const seleccionarProducto = (prod) => {
-    if (toppingsDisponibles.length > 0) {
-      setModalToppings(prod);
+  // Abre el modal de toppings solo si ESTE producto tiene toppings propios asignados
+  const seleccionarProducto = async (prod) => {
+    if (prod.tiene_toppings) {
+      setCargandoToppingsProducto(true);
+      try {
+        const { data } = await API.get(`/productos/${prod.id}`);
+        const propios = (data.producto?.toppings || []);
+        if (propios.length > 0) {
+          setToppingsProductoActual(propios);
+          setModalToppings(prod);
+        } else {
+          agregarItem(prod, []);
+        }
+      } catch {
+        toast.error('Error cargando toppings del producto');
+        agregarItem(prod, []);
+      } finally {
+        setCargandoToppingsProducto(false);
+      }
     } else {
       agregarItem(prod, []);
     }
@@ -631,7 +648,7 @@ export default function Ventas() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
                 {filtradosPOS.map(p => (
-                  <ProductoCard key={p.id} prod={p} onClick={clickProducto} hayToppings={toppingsDisponibles.length > 0} />
+                  <ProductoCard key={p.id} prod={p} onClick={clickProducto} hayToppings={!!p.tiene_toppings} />
                 ))}
                 {filtradosPOS.length === 0 && (
                   <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 48, color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
@@ -683,8 +700,13 @@ export default function Ventas() {
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{item.nombre}</div>
                         {item.toppingsSeleccionados?.length > 0 && (
-                          <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)' }}>
-                            + {item.toppingsSeleccionados.map(t => t.nombre).join(', ')}
+                          <div style={{ marginTop: 2 }}>
+                            {item.toppingsSeleccionados.map((t, ti) => (
+                              <div key={ti} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--texto-suave)' }}>
+                                <span>+ {t.nombre}</span>
+                                <span>{parseFloat(t.precio_cop) > 0 ? `$${Number(t.precio_cop).toLocaleString('es-CO')}` : 'Gratis'}</span>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -1046,7 +1068,7 @@ export default function Ventas() {
       {/* Modal toppings POS */}
       <ModalToppings
         producto={modalToppings}
-        toppingsDisponibles={toppingsDisponibles}
+        toppingsDisponibles={toppingsProductoActual}
         onAgregar={agregarItem}
         onClose={() => setModalToppings(null)}
       />
@@ -1101,8 +1123,13 @@ export default function Ventas() {
                     <span style={{ fontWeight: 700, color: 'var(--verde)' }}>${Number(item.subtotal_cop).toLocaleString('es-CO')}</span>
                   </div>
                   {item.toppings?.length > 0 && (
-                    <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)' }}>
-                      Extras: {item.toppings.map(t => t.topping_nombre).join(', ')}
+                    <div style={{ marginTop: 2, marginBottom: 4 }}>
+                      {item.toppings.map((t, ti) => (
+                        <div key={ti} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--texto-suave)' }}>
+                          <span>+ {t.topping_nombre}</span>
+                          <span>{parseFloat(t.precio_cop) > 0 ? `$${Number(t.precio_cop).toLocaleString('es-CO')}` : 'Gratis'}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                   <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)', marginTop: 2 }}>

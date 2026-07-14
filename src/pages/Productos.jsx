@@ -595,23 +595,39 @@ export default function Productos() {
           {form.tiene_toppings && toppings.filter(t => t.activo !== false).length > 0 && (
             <div style={{ gridColumn: '1/-1' }}>
               <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 10, display: 'block' }}>Toppings disponibles para este producto</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {toppings.filter(t => t.activo !== false).map(t => (
-                  <button
+              <div style={{ border: '2px solid #E0E0E0', borderRadius: 12, overflow: 'hidden' }}>
+                {toppings.filter(t => t.activo !== false).map((t, idx) => (
+                  <div
                     key={t.id}
-                    type="button"
+                    role="button"
                     onClick={() => toggleTopping(t.id)}
                     style={{
-                      padding: '6px 14px', borderRadius: 20, border: '2px solid',
-                      borderColor: form.toppings_ids.includes(t.id) ? 'var(--naranja)' : '#E0E0E0',
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '10px 14px',
+                      borderTop: idx === 0 ? 'none' : '1px solid #F0F0F0',
                       background: form.toppings_ids.includes(t.id) ? '#FFF3E0' : '#fff',
-                      color: form.toppings_ids.includes(t.id) ? 'var(--naranja)' : 'var(--texto-suave)',
-                      fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer',
-                      transition: 'all 0.15s'
+                      cursor: 'pointer', transition: 'background 0.15s'
                     }}
                   >
-                    {t.nombre} {parseFloat(t.precio_usd) > 0 ? `+$${parseFloat(t.precio_usd).toFixed(2)}` : ''}
-                  </button>
+                    <span style={{
+                      width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+                      border: '2px solid', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      borderColor: form.toppings_ids.includes(t.id) ? 'var(--naranja)' : '#CCC',
+                      background: form.toppings_ids.includes(t.id) ? 'var(--naranja)' : '#fff',
+                      color: '#fff', fontSize: '0.75rem'
+                    }}>
+                      {form.toppings_ids.includes(t.id) && '✓'}
+                    </span>
+                    <span style={{
+                      flex: 1, fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.85rem',
+                      color: form.toppings_ids.includes(t.id) ? 'var(--naranja)' : 'var(--texto-suave)'
+                    }}>
+                      {t.nombre}
+                    </span>
+                    <span style={{ fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.82rem', color: form.toppings_ids.includes(t.id) ? 'var(--naranja)' : '#9E9E9E' }}>
+                      {parseFloat(t.precio_usd) > 0 ? `+$${parseFloat(t.precio_usd).toFixed(2)}` : 'Gratis'}
+                    </span>
+                  </div>
                 ))}
               </div>
             </div>

@@ -64,21 +64,27 @@ const ModalVenta = ({ show, onClose, carrito, moneda, setMoneda, tasa, setTasa, 
         {/* Resumen items */}
         <div style={{ marginBottom: 20 }}>
           {carrito.map((item, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, padding: '10px 14px', background: 'var(--crema)', borderRadius: 12 }}>
-              <div>
+            <div key={i} style={{ marginBottom: 10, padding: '10px 14px', background: 'var(--crema)', borderRadius: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{item.nombre} x{item.cantidad}</div>
-                {(item.toppingsSeleccionados || []).length > 0 && (
-                  <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)' }}>
-                    + {item.toppingsSeleccionados.map(t => t.nombre).join(', ')}
-                  </div>
-                )}
+                <div style={{ fontWeight: 700, color: 'var(--verde)', fontSize: '0.9rem' }}>
+                  ${Number(parseFloat(item.precio_final_cop) * item.cantidad).toLocaleString('es-CO')}
+                </div>
               </div>
-              <div style={{ fontWeight: 700, color: 'var(--verde)', fontSize: '0.9rem' }}>
-                ${Number(parseFloat(item.precio_final_cop) * item.cantidad + (item.toppingsSeleccionados || []).reduce((a, t) => a + (parseFloat(t.precio_cop) || 0), 0) * item.cantidad).toLocaleString('es-CO')}
-              </div>
+              {(item.toppingsSeleccionados || []).length > 0 && (
+                <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px dashed #ddd' }}>
+                  {item.toppingsSeleccionados.map((t, ti) => (
+                    <div key={ti} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--texto-suave)', marginTop: 2 }}>
+                      <span>+ {t.nombre} {item.cantidad > 1 ? `x${item.cantidad}` : ''}</span>
+                      <span>{parseFloat(t.precio_cop) > 0 ? `$${Number(parseFloat(t.precio_cop) * item.cantidad).toLocaleString('es-CO')}` : 'Gratis'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
+
 
         {/* Moneda */}
         <div style={{ marginBottom: 16 }}>
@@ -321,18 +327,18 @@ export default function Catalogo() {
   const [procesando, setProcesando] = useState(false);
   const [modalToppings, setModalToppings] = useState(null);
   const [toppingsSeleccionados, setToppingsSeleccionados] = useState([]);
-  const [toppingsDisponibles, setToppingsDisponibles] = useState([]);
+  const [toppingsProductoActual, setToppingsProductoActual] = useState([]);
+  const [cargandoToppingsProducto, setCargandoToppingsProducto] = useState(false);
   const [modalVariantes, setModalVariantes] = useState(null); // { padre, variantes }
   const [cargandoVariantes, setCargandoVariantes] = useState(false);
 
   const cargar = async () => {
     setCargando(true);
     try {
-      const [r1, r2, r3, r4] = await Promise.all([
+      const [r1, r2, r3] = await Promise.all([
         API.get('/productos/activos'),
         API.get('/categorias'),
-        API.get('/tasas-cambio'),
-        API.get('/toppings')
+        API.get('/tasas-cambio')
       ]);
       setProductos(r1.data.productos);
       setCategorias(r2.data.categorias);
@@ -341,18 +347,32 @@ export default function Catalogo() {
       if (ultimaBS) setTasa(ultimaBS.tasa_por_usd);
       const ultimaCOP = r3.data.tasas.find(t => t.moneda === 'COP');
       setTasaCop(ultimaCOP || null);
-      setToppingsDisponibles((r4.data.toppings || []).filter(t => t.activo !== false));
     } catch { toast.error('Error cargando catálogo'); }
     finally { setCargando(false); }
   };
 
   useEffect(() => { cargar(); }, []);
 
-  // Abre el modal de extras si hay toppings globales, o agrega directo si no hay
-  const seleccionarProducto = (prod) => {
-    if (toppingsDisponibles.length > 0) {
-      setModalToppings(prod);
-      setToppingsSeleccionados([]);
+  // Abre el modal de toppings solo si ESTE producto tiene toppings propios asignados
+  const seleccionarProducto = async (prod) => {
+    if (prod.tiene_toppings) {
+      setCargandoToppingsProducto(true);
+      try {
+        const { data } = await API.get(`/productos/${prod.id}`);
+        const propios = (data.producto?.toppings || []);
+        if (propios.length > 0) {
+          setToppingsProductoActual(propios);
+          setModalToppings(prod);
+          setToppingsSeleccionados([]);
+        } else {
+          agregarAlCarrito(prod, []);
+        }
+      } catch {
+        toast.error('Error cargando toppings del producto');
+        agregarAlCarrito(prod, []);
+      } finally {
+        setCargandoToppingsProducto(false);
+      }
     } else {
       agregarAlCarrito(prod, []);
     }
@@ -494,7 +514,7 @@ export default function Catalogo() {
                 )}
                 {prod.tiene_toppings && (
                   <span style={{ position: 'absolute', top: 8, left: 8, background: 'var(--naranja)', color: '#fff', borderRadius: 20, padding: '3px 10px', fontSize: '0.7rem', fontWeight: 700 }}>
-                    + Extras
+                    + Toppings
                   </span>
                 )}
                 {prod.tiene_variantes && (
@@ -561,16 +581,16 @@ export default function Catalogo() {
         }}>
           <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 420, padding: 28 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-              <h5 style={{ fontWeight: 700, margin: 0 }}>Extras para {modalToppings.nombre}</h5>
+              <h5 style={{ fontWeight: 700, margin: 0 }}>Toppings para {modalToppings.nombre}</h5>
               <button onClick={() => setModalToppings(null)} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer' }}>
                 <RiCloseLine />
               </button>
             </div>
             <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginBottom: 16 }}>
-              Selecciona los adicionales que deseas agregar
+              Selecciona los toppings que deseas agregar
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-              {toppingsDisponibles.map(t => (
+              {toppingsProductoActual.map(t => (
                 <button key={t.id} onClick={() => setToppingsSeleccionados(ts =>
                   ts.find(x => x.id === t.id) ? ts.filter(x => x.id !== t.id) : [...ts, t]
                 )} style={{
@@ -593,7 +613,7 @@ export default function Catalogo() {
                 background: '#fff', color: 'var(--texto-suave)', cursor: 'pointer',
                 fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.85rem'
               }}>
-                Sin extras
+                Sin toppings
               </button>
               <button className="btn-verde" style={{ flex: 1, padding: '13px' }}
                 onClick={() => agregarAlCarrito(modalToppings, toppingsSeleccionados)}>
