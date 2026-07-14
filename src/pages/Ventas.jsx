@@ -168,9 +168,9 @@ const ModalVariantes = ({ padre, variantes, onSeleccionar, onClose }) => {
   );
 };
 
-/* ─── Modal toppings ─── */
-const ModalToppings = ({ producto, toppingsDisponibles, onAgregar, onClose }) => {
-  const [seleccionados, setSeleccionados] = useState([]);
+/* ─── Modal toppings (agregar nuevo item O editar toppings de uno ya en el carrito) ─── */
+const ModalToppings = ({ producto, toppingsDisponibles, seleccionInicial = [], modo = 'agregar', onConfirmar, onClose }) => {
+  const [seleccionados, setSeleccionados] = useState(seleccionInicial);
   if (!producto) return null;
   const toggle = (t) => setSeleccionados(s => s.find(x => x.id === t.id) ? s.filter(x => x.id !== t.id) : [...s, t]);
   const extra = seleccionados.reduce((a, t) => a + (parseFloat(t.precio_cop) || 0), 0);
@@ -186,7 +186,7 @@ const ModalToppings = ({ producto, toppingsDisponibles, onAgregar, onClose }) =>
           <h5 style={{ fontWeight: 700, margin: 0 }}>Toppings — {producto.nombre}</h5>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer' }}><RiCloseLine /></button>
         </div>
-        <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginBottom: 14 }}>Selecciona los adicionales (opcional)</p>
+        <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginBottom: 14 }}>Selecciona los toppings que deseas</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20, maxHeight: 320, overflowY: 'auto' }}>
           {toppingsDisponibles?.map(t => (
             <button key={t.id} onClick={() => toggle(t)} style={{
@@ -204,7 +204,7 @@ const ModalToppings = ({ producto, toppingsDisponibles, onAgregar, onClose }) =>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={() => onAgregar(producto, [])} style={{
+          <button onClick={() => onConfirmar(producto, [])} style={{
             flex: 1, padding: 13, borderRadius: 14, border: '2px solid #E0E0E0',
             background: '#fff', color: 'var(--texto-suave)', cursor: 'pointer',
             fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.85rem'
@@ -212,8 +212,8 @@ const ModalToppings = ({ producto, toppingsDisponibles, onAgregar, onClose }) =>
             Sin toppings
           </button>
           <button className="btn-verde" style={{ flex: 1, padding: 13 }}
-            onClick={() => onAgregar(producto, seleccionados)}>
-            Añadir · ${Number(parseFloat(producto.precio_final_cop) + extra).toLocaleString('es-CO')}
+            onClick={() => onConfirmar(producto, seleccionados)}>
+            {modo === 'editar' ? 'Guardar' : 'Añadir'} · ${Number(parseFloat(producto.precio_final_cop) + extra).toLocaleString('es-CO')}
           </button>
         </div>
       </div>
@@ -349,7 +349,7 @@ export default function Ventas() {
   const [cargandoToppingsProducto, setCargandoToppingsProducto] = useState(false);
   const [toppingsProductoActual, setToppingsProductoActual] = useState([]);
   const [carpetas, setCarpetas] = useState([]);
-  const [modalCarpeta, setModalCarpeta] = useState(null); // { carpeta, productos }
+  const [carpetaActiva, setCarpetaActiva] = useState(null); // { id, nombre, productos } — pantalla completa, no modal
   const [cargandoCarpeta, setCargandoCarpeta] = useState(false);
   const [categorias, setCategorias] = useState([]);
   const [tasas, setTasas] = useState([]);
@@ -358,6 +358,7 @@ export default function Ventas() {
   const [catActiva, setCatActiva] = useState('');
   const [carrito, setCarrito] = useState([]);
   const [modalToppings, setModalToppings] = useState(null);
+  const [modalToppingsCarritoIdx, setModalToppingsCarritoIdx] = useState(null); // idx del item del carrito que se está editando (null = modal es para "agregar nuevo")
   const [moneda, setMoneda] = useState('COP');
   const [tasa, setTasa] = useState(''); // tasa BS/USD, solo aplica si moneda === 'BS'
   const [tasaCop, setTasaCop] = useState(null); // tasa COP/USD vigente (objeto tasas_cambio)
@@ -443,15 +444,17 @@ export default function Ventas() {
   useEffect(() => { if (vista === 'historial') cargarHistorial(); }, [vista]);
 
   /* ── POS: agregar producto ── */
-  // Abre una carpeta y trae los productos que contiene
+  // Abre una carpeta y trae los productos que contiene (pantalla completa, no modal)
   const abrirCarpeta = async (carpeta) => {
     setCargandoCarpeta(true);
     try {
       const { data } = await API.get(`/carpetas/${carpeta.id}`);
-      setModalCarpeta({ carpeta: data.carpeta, productos: data.productos || [] });
+      setCarpetaActiva({ ...data.carpeta, productos: data.productos || [] });
     } catch { toast.error('Error cargando la carpeta'); }
     finally { setCargandoCarpeta(false); }
   };
+
+  const cerrarCarpeta = () => setCarpetaActiva(null);
 
   // Abre el modal de toppings solo si ESTE producto tiene toppings propios asignados
   const seleccionarProducto = async (prod) => {
@@ -501,6 +504,36 @@ export default function Ventas() {
     });
     setModalToppings(null);
     toast.success(`${prod.nombre} añadido`, { autoClose: 800 });
+  };
+
+  // Abre el modal de toppings para EDITAR un item que ya está en el carrito
+  const abrirToppingsCarrito = async (idx) => {
+    const item = carrito[idx];
+    setCargandoToppingsProducto(true);
+    try {
+      const { data } = await API.get(`/productos/${item.id}`);
+      setToppingsProductoActual(data.producto?.toppings || []);
+      setModalToppingsCarritoIdx(idx);
+    } catch {
+      toast.error('Error cargando toppings del producto');
+    } finally {
+      setCargandoToppingsProducto(false);
+    }
+  };
+
+  // Callback único del modal de toppings: decide si agrega un item nuevo o edita uno existente
+  const confirmarToppingsModal = (producto, tops) => {
+    if (modalToppingsCarritoIdx !== null) {
+      setCarrito(c => {
+        const n = [...c];
+        const key = `${producto.id}-${tops.map(t => t.id).join(',')}`;
+        n[modalToppingsCarritoIdx] = { ...n[modalToppingsCarritoIdx], toppingsSeleccionados: tops, _key: key };
+        return n;
+      });
+      setModalToppingsCarritoIdx(null);
+    } else {
+      agregarItem(producto, tops);
+    }
   };
 
   const cambiarCantidad = (idx, delta) => {
@@ -678,7 +711,7 @@ export default function Ventas() {
                   onChange={e => setBusqueda(e.target.value)} style={{ paddingLeft: 40 }} />
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button onClick={() => setCatActiva('')} style={{
+                <button onClick={() => { setCatActiva(''); setCarpetaActiva(null); }} style={{
                   padding: '6px 14px', borderRadius: 20, border: '2px solid',
                   borderColor: !catActiva ? 'var(--verde)' : '#E0E0E0',
                   background: !catActiva ? '#E8F5E9' : '#fff',
@@ -686,7 +719,7 @@ export default function Ventas() {
                   fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer'
                 }}>Todos</button>
                 {categorias.map(c => (
-                  <button key={c.id} onClick={() => setCatActiva(c.id)} style={{
+                  <button key={c.id} onClick={() => { setCatActiva(c.id); setCarpetaActiva(null); }} style={{
                     padding: '6px 14px', borderRadius: 20, border: '2px solid',
                     borderColor: catActiva === c.id ? 'var(--verde)' : '#E0E0E0',
                     background: catActiva === c.id ? '#E8F5E9' : '#fff',
@@ -702,6 +735,30 @@ export default function Ventas() {
               <div style={{ textAlign: 'center', padding: 60 }}>
                 <div className="spinner-border" style={{ color: 'var(--verde)' }} />
               </div>
+            ) : carpetaActiva ? (
+              <>
+                <button onClick={cerrarCarpeta} style={{
+                  display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14,
+                  background: '#fff', border: '2px solid #E0E0E0', borderRadius: 10,
+                  padding: '8px 14px', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.82rem',
+                  color: 'var(--texto-suave)', cursor: 'pointer'
+                }}>
+                  ← Volver a todos los productos
+                </button>
+                <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 12 }}>📁 {carpetaActiva.nombre}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+                  {carpetaActiva.productos
+                    .filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+                    .map(p => (
+                      <ProductoCard key={p.id} prod={p} onClick={clickProducto} hayToppings={!!p.tiene_toppings} />
+                    ))}
+                  {carpetaActiva.productos.length === 0 && (
+                    <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 48, color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
+                      Esta carpeta no tiene productos disponibles todavía.
+                    </div>
+                  )}
+                </div>
+              </>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
                 {carpetasFiltradasPOS.map(c => (
@@ -786,6 +843,15 @@ export default function Ventas() {
                           background: 'var(--verde)', color: '#fff', cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem'
                         }}><RiAddLine /></button>
+                        {item.tiene_toppings && (
+                          <button onClick={() => abrirToppingsCarrito(idx)} style={{
+                            marginLeft: 4, background: '#FFF3E0', border: 'none', borderRadius: 8,
+                            padding: '5px 10px', color: 'var(--naranja)', fontFamily: 'Poppins',
+                            fontWeight: 700, fontSize: '0.7rem', cursor: 'pointer', whiteSpace: 'nowrap'
+                          }}>
+                            + Toppings
+                          </button>
+                        )}
                       </div>
                       <span style={{ fontWeight: 700, color: 'var(--verde)', fontSize: '0.9rem' }}>${Number(subtotal).toLocaleString('es-CO')}</span>
                     </div>
@@ -1125,20 +1191,15 @@ export default function Ventas() {
         onClose={() => setModalVariantes(null)}
       />
 
-      {/* Modal contenido de carpeta POS (reutiliza el mismo look de variantes) */}
-      <ModalVariantes
-        padre={modalCarpeta ? { nombre: `📁 ${modalCarpeta.carpeta.nombre}` } : null}
-        variantes={modalCarpeta?.productos || []}
-        onSeleccionar={(prod) => { setModalCarpeta(null); seleccionarProducto(prod); }}
-        onClose={() => setModalCarpeta(null)}
-      />
-
-      {/* Modal toppings POS */}
+      {/* Modal toppings POS (agregar nuevo o editar toppings de un item ya en el carrito) */}
       <ModalToppings
-        producto={modalToppings}
+        producto={modalToppingsCarritoIdx !== null ? carrito[modalToppingsCarritoIdx] : modalToppings}
         toppingsDisponibles={toppingsProductoActual}
-        onAgregar={agregarItem}
-        onClose={() => setModalToppings(null)}
+        seleccionInicial={modalToppingsCarritoIdx !== null ? (carrito[modalToppingsCarritoIdx]?.toppingsSeleccionados || []) : []}
+        modo={modalToppingsCarritoIdx !== null ? 'editar' : 'agregar'}
+        key={modalToppingsCarritoIdx !== null ? `carrito-${modalToppingsCarritoIdx}` : (modalToppings ? `nuevo-${modalToppings.id}` : 'cerrado')}
+        onConfirmar={confirmarToppingsModal}
+        onClose={() => { setModalToppings(null); setModalToppingsCarritoIdx(null); }}
       />
 
       {/* Ticket */}
