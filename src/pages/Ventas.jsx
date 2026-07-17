@@ -39,7 +39,7 @@ const Modal = ({ show, onClose, children, titulo, maxWidth = 520 }) => {
 };
 
 /* ─── Card producto en el POS ─── */
-const ProductoCard = ({ prod, onClick, hayToppings }) => (
+const ProductoCard = ({ prod, onClick }) => (
   <div
     onClick={() => onClick(prod)}
     style={{
@@ -65,13 +65,6 @@ const ProductoCard = ({ prod, onClick, hayToppings }) => (
             <RiImageLine style={{ fontSize: 28, color: '#BDBDBD' }} />
           </div>
       }
-      {hayToppings && (
-        <span style={{
-          position: 'absolute', top: 6, left: 6,
-          background: 'var(--naranja)', color: '#fff',
-          borderRadius: 20, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700
-        }}>+ Toppings</span>
-      )}
       {prod.tiene_variantes && (
         <span style={{
           position: 'absolute', top: 6, right: 6,
@@ -293,7 +286,6 @@ export default function Ventas() {
   const [productos, setProductos] = useState([]);
   const [modalVariantes, setModalVariantes] = useState(null); // { padre, variantes }
   const [cargandoVariantes, setCargandoVariantes] = useState(false);
-  const [cargandoToppingsProducto, setCargandoToppingsProducto] = useState(false);
   const [carpetas, setCarpetas] = useState([]);
   const [carpetaActiva, setCarpetaActiva] = useState(null); // { id, nombre, productos } — pantalla completa, no modal
   const [cargandoCarpeta, setCargandoCarpeta] = useState(false);
@@ -304,7 +296,7 @@ export default function Ventas() {
   const [catActiva, setCatActiva] = useState('');
   const [carrito, setCarrito] = useState([]);
   const [toppingsExpandidoIdx, setToppingsExpandidoIdx] = useState(null); // idx del item del carrito con el split de toppings abierto
-  const [toppingsCache, setToppingsCache] = useState({}); // { [productoId]: toppings[] } — cache para no repetir el fetch
+  const [toppingsDisponibles, setToppingsDisponibles] = useState([]); // TODOS los toppings activos del sistema — disponibles para cualquier producto
   const [moneda, setMoneda] = useState('COP');
   const [tasa, setTasa] = useState(''); // tasa BS/USD, solo aplica si moneda === 'BS'
   const [tasaCop, setTasaCop] = useState(null); // tasa COP/USD vigente (objeto tasas_cambio)
@@ -344,11 +336,12 @@ export default function Ventas() {
   const cargarPOS = async () => {
     setCargandoPOS(true);
     try {
-      const [r1, r2, r3, r4] = await Promise.all([
+      const [r1, r2, r3, r4, r5] = await Promise.all([
         API.get('/productos/activos'),
         API.get('/categorias'),
         API.get('/tasas-cambio'),
-        API.get('/carpetas/activas')
+        API.get('/carpetas/activas'),
+        API.get('/toppings')
       ]);
       setProductos(r1.data.productos);
       setCategorias(r2.data.categorias);
@@ -358,6 +351,9 @@ export default function Ventas() {
       const ultimaCOP = r3.data.tasas.find(t => t.moneda === 'COP');
       setTasaCop(ultimaCOP || null);
       setCarpetas(r4.data.carpetas || []);
+      // Lista COMPLETA de toppings activos del sistema — cualquier producto puede
+      // llevar cualquiera de estos toppings, esté o no asociado en producto_toppings.
+      setToppingsDisponibles((r5.data.toppings || []).filter(t => t.activo !== false));
     } catch { toast.error('Error cargando productos'); }
     finally { setCargandoPOS(false); }
   };
@@ -434,23 +430,11 @@ export default function Ventas() {
     toast.success(`${prod.nombre} añadido`, { autoClose: 800 });
   };
 
-  // Despliega/colapsa el split de toppings de un item YA en el carrito (sin modal)
-  const toggleToppingsCarrito = async (idx) => {
-    if (toppingsExpandidoIdx === idx) { setToppingsExpandidoIdx(null); return; }
-    const item = carrito[idx];
-    if (!toppingsCache[item.id]) {
-      setCargandoToppingsProducto(true);
-      try {
-        const { data } = await API.get(`/productos/${item.id}`);
-        setToppingsCache(prev => ({ ...prev, [item.id]: data.producto?.toppings || [] }));
-      } catch {
-        toast.error('Error cargando toppings del producto');
-        return;
-      } finally {
-        setCargandoToppingsProducto(false);
-      }
-    }
-    setToppingsExpandidoIdx(idx);
+  // Despliega/colapsa el split de toppings de un item YA en el carrito (sin modal).
+  // Ya no depende de si el producto tiene toppings propios asignados: se usa
+  // siempre la lista completa de toppings activos del sistema.
+  const toggleToppingsCarrito = (idx) => {
+    setToppingsExpandidoIdx(prev => (prev === idx ? null : idx));
   };
 
   // Marca/desmarca un topping directamente sobre el item del carrito — suma o resta del precio al instante
@@ -680,7 +664,7 @@ export default function Ventas() {
                   {carpetaActiva.productos
                     .filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
                     .map(p => (
-                      <ProductoCard key={p.id} prod={p} onClick={clickProducto} hayToppings={!!p.tiene_toppings} />
+                      <ProductoCard key={p.id} prod={p} onClick={clickProducto} />
                     ))}
                   {carpetaActiva.productos.length === 0 && (
                     <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 48, color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
@@ -695,7 +679,7 @@ export default function Ventas() {
                   <CarpetaCard key={`carpeta-${c.id}`} carpeta={c} onClick={abrirCarpeta} />
                 ))}
                 {filtradosPOS.map(p => (
-                  <ProductoCard key={p.id} prod={p} onClick={clickProducto} hayToppings={!!p.tiene_toppings} />
+                  <ProductoCard key={p.id} prod={p} onClick={clickProducto} />
                 ))}
                 {filtradosPOS.length === 0 && carpetasFiltradasPOS.length === 0 && (
                   <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 48, color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
@@ -773,16 +757,14 @@ export default function Ventas() {
                           background: 'var(--verde)', color: '#fff', cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem'
                         }}><RiAddLine /></button>
-                        {item.tiene_toppings && (
-                          <button onClick={() => toggleToppingsCarrito(idx)} style={{
-                            marginLeft: 4, background: '#FFF3E0', border: 'none', borderRadius: 8,
-                            padding: '5px 10px', color: 'var(--naranja)', fontFamily: 'Poppins',
-                            fontWeight: 700, fontSize: '0.7rem', cursor: 'pointer', whiteSpace: 'nowrap',
-                            display: 'flex', alignItems: 'center', gap: 4
-                          }}>
-                            {toppingsExpandidoIdx === idx ? 'Ocultar toppings ▲' : '+ Añadir toppings ▼'}
-                          </button>
-                        )}
+                        <button onClick={() => toggleToppingsCarrito(idx)} style={{
+                          marginLeft: 4, background: '#FFF3E0', border: 'none', borderRadius: 8,
+                          padding: '5px 10px', color: 'var(--naranja)', fontFamily: 'Poppins',
+                          fontWeight: 700, fontSize: '0.7rem', cursor: 'pointer', whiteSpace: 'nowrap',
+                          display: 'flex', alignItems: 'center', gap: 4
+                        }}>
+                          {toppingsExpandidoIdx === idx ? 'Ocultar toppings ▲' : '+ Añadir toppings ▼'}
+                        </button>
                       </div>
                       <span style={{ fontWeight: 700, color: 'var(--verde)', fontSize: '0.9rem' }}>${Number(subtotal).toLocaleString('es-CO')}</span>
                     </div>
@@ -790,11 +772,11 @@ export default function Ventas() {
                     {/* Split desplegable de toppings — directo aquí en el carrito, sin modal */}
                     {toppingsExpandidoIdx === idx && (
                       <div style={{ marginTop: 8, border: '1px solid #F0F0F0', borderRadius: 10, overflow: 'hidden' }}>
-                        {(toppingsCache[item.id] || []).length === 0 ? (
+                        {toppingsDisponibles.length === 0 ? (
                           <div style={{ padding: 10, fontSize: '0.75rem', color: 'var(--texto-suave)', textAlign: 'center' }}>
-                            Este producto no tiene toppings configurados.
+                            No hay toppings registrados en el sistema.
                           </div>
-                        ) : (toppingsCache[item.id] || []).map((t, ti) => {
+                        ) : toppingsDisponibles.map((t, ti) => {
                           const marcado = (item.toppingsSeleccionados || []).some(x => x.id === t.id);
                           return (
                             <div
