@@ -168,59 +168,6 @@ const ModalVariantes = ({ padre, variantes, onSeleccionar, onClose }) => {
   );
 };
 
-/* ─── Modal toppings (agregar nuevo item O editar toppings de uno ya en el carrito) ─── */
-const ModalToppings = ({ producto, toppingsDisponibles, seleccionInicial = [], modo = 'agregar', onConfirmar, onClose }) => {
-  const [seleccionados, setSeleccionados] = useState(seleccionInicial);
-  if (!producto) return null;
-  const toggle = (t) => setSeleccionados(s => s.find(x => x.id === t.id) ? s.filter(x => x.id !== t.id) : [...s, t]);
-  const extra = seleccionados.reduce((a, t) => a + (parseFloat(t.precio_cop) || 0), 0);
-
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 1060,
-      background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
-    }}>
-      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 400, padding: 28 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-          <h5 style={{ fontWeight: 700, margin: 0 }}>Toppings — {producto.nombre}</h5>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer' }}><RiCloseLine /></button>
-        </div>
-        <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginBottom: 14 }}>Selecciona los toppings que deseas</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20, maxHeight: 320, overflowY: 'auto' }}>
-          {toppingsDisponibles?.map(t => (
-            <button key={t.id} onClick={() => toggle(t)} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '11px 14px', borderRadius: 12, border: '2px solid',
-              borderColor: seleccionados.find(x => x.id === t.id) ? 'var(--naranja)' : '#E0E0E0',
-              background: seleccionados.find(x => x.id === t.id) ? '#FFF3E0' : '#fff',
-              cursor: 'pointer', fontFamily: 'Poppins', textAlign: 'left'
-            }}>
-              <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>{t.nombre}</span>
-              <span style={{ fontWeight: 700, color: 'var(--naranja)', fontSize: '0.85rem' }}>
-                {parseFloat(t.precio_cop) > 0 ? `+$${Number(t.precio_cop).toLocaleString('es-CO')}` : 'Gratis'}
-              </span>
-            </button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={() => onConfirmar(producto, [])} style={{
-            flex: 1, padding: 13, borderRadius: 14, border: '2px solid #E0E0E0',
-            background: '#fff', color: 'var(--texto-suave)', cursor: 'pointer',
-            fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.85rem'
-          }}>
-            Sin toppings
-          </button>
-          <button className="btn-verde" style={{ flex: 1, padding: 13 }}
-            onClick={() => onConfirmar(producto, seleccionados)}>
-            {modo === 'editar' ? 'Guardar' : 'Añadir'} · ${Number(parseFloat(producto.precio_final_cop) + extra).toLocaleString('es-CO')}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 /* ════════════════════════════════════════════════════════════════
    🖨️ IMPRESIÓN — PLACEHOLDER
    Todavía no hay impresora ni API definida. Esta función es el ÚNICO
@@ -347,7 +294,6 @@ export default function Ventas() {
   const [modalVariantes, setModalVariantes] = useState(null); // { padre, variantes }
   const [cargandoVariantes, setCargandoVariantes] = useState(false);
   const [cargandoToppingsProducto, setCargandoToppingsProducto] = useState(false);
-  const [toppingsProductoActual, setToppingsProductoActual] = useState([]);
   const [carpetas, setCarpetas] = useState([]);
   const [carpetaActiva, setCarpetaActiva] = useState(null); // { id, nombre, productos } — pantalla completa, no modal
   const [cargandoCarpeta, setCargandoCarpeta] = useState(false);
@@ -357,7 +303,6 @@ export default function Ventas() {
   const [busqueda, setBusqueda] = useState('');
   const [catActiva, setCatActiva] = useState('');
   const [carrito, setCarrito] = useState([]);
-  const [modalToppings, setModalToppings] = useState(null);
   const [toppingsExpandidoIdx, setToppingsExpandidoIdx] = useState(null); // idx del item del carrito con el split de toppings abierto
   const [toppingsCache, setToppingsCache] = useState({}); // { [productoId]: toppings[] } — cache para no repetir el fetch
   const [moneda, setMoneda] = useState('COP');
@@ -457,28 +402,11 @@ export default function Ventas() {
 
   const cerrarCarpeta = () => setCarpetaActiva(null);
 
-  // Abre el modal de toppings solo si ESTE producto tiene toppings propios asignados
-  const seleccionarProducto = async (prod) => {
-    if (prod.tiene_toppings) {
-      setCargandoToppingsProducto(true);
-      try {
-        const { data } = await API.get(`/productos/${prod.id}`);
-        const propios = (data.producto?.toppings || []);
-        if (propios.length > 0) {
-          setToppingsProductoActual(propios);
-          setModalToppings(prod);
-        } else {
-          agregarItem(prod, []);
-        }
-      } catch {
-        toast.error('Error cargando toppings del producto');
-        agregarItem(prod, []);
-      } finally {
-        setCargandoToppingsProducto(false);
-      }
-    } else {
-      agregarItem(prod, []);
-    }
+  // Ya no se abre ningún modal al seleccionar un producto: siempre se agrega
+  // directo al carrito sin toppings. Los toppings se eligen después, desde
+  // el propio "Pedido del cliente" (carrito), con el split desplegable inline.
+  const seleccionarProducto = (prod) => {
+    agregarItem(prod, []);
   };
 
   const clickProducto = async (prod) => {
@@ -503,7 +431,6 @@ export default function Ventas() {
       }
       return [...c, { ...prod, cantidad: 1, toppingsSeleccionados: tops, _key: key }];
     });
-    setModalToppings(null);
     toast.success(`${prod.nombre} añadido`, { autoClose: 800 });
   };
 
@@ -853,7 +780,7 @@ export default function Ventas() {
                             fontWeight: 700, fontSize: '0.7rem', cursor: 'pointer', whiteSpace: 'nowrap',
                             display: 'flex', alignItems: 'center', gap: 4
                           }}>
-                            Toppings {toppingsExpandidoIdx === idx ? '▲' : '▼'}
+                            {toppingsExpandidoIdx === idx ? 'Ocultar toppings ▲' : '+ Añadir toppings ▼'}
                           </button>
                         )}
                       </div>
@@ -1236,16 +1163,9 @@ export default function Ventas() {
         onClose={() => setModalVariantes(null)}
       />
 
-      {/* Modal toppings POS — solo para elegir toppings al AGREGAR un producto nuevo al carrito.
-          Para editar los toppings de un item que ya está en el carrito, se usa el split
-          desplegable inline dentro del propio "Pedido del cliente" (sin modal). */}
-      <ModalToppings
-        producto={modalToppings}
-        toppingsDisponibles={toppingsProductoActual}
-        key={modalToppings ? `nuevo-${modalToppings.id}` : 'cerrado'}
-        onConfirmar={agregarItem}
-        onClose={() => setModalToppings(null)}
-      />
+      {/* Ya no hay modal de toppings al agregar un producto: se agrega directo
+          al carrito y los toppings se eligen desde el split desplegable inline
+          dentro del propio "Pedido del cliente". */}
 
       {/* Ticket */}
       <ModalTicket
