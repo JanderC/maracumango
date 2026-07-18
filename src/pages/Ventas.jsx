@@ -617,31 +617,11 @@ export default function Ventas() {
 
           {/* ── Panel izquierdo: productos ── */}
           <div>
-            {/* Búsqueda + categorías */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ position: 'relative', marginBottom: 12 }}>
-                <RiSearchLine style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--texto-suave)' }} />
-                <input className="input-mm" placeholder="Buscar producto..." value={busqueda}
-                  onChange={e => setBusqueda(e.target.value)} style={{ paddingLeft: 40 }} />
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button onClick={() => { setCatActiva(''); setCarpetaActiva(null); }} style={{
-                  padding: '6px 14px', borderRadius: 20, border: '2px solid',
-                  borderColor: !catActiva ? 'var(--verde)' : '#E0E0E0',
-                  background: !catActiva ? '#E8F5E9' : '#fff',
-                  color: !catActiva ? 'var(--verde)' : 'var(--texto-suave)',
-                  fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer'
-                }}>Todos</button>
-                {categorias.map(c => (
-                  <button key={c.id} onClick={() => { setCatActiva(c.id); setCarpetaActiva(null); }} style={{
-                    padding: '6px 14px', borderRadius: 20, border: '2px solid',
-                    borderColor: catActiva === c.id ? 'var(--verde)' : '#E0E0E0',
-                    background: catActiva === c.id ? '#E8F5E9' : '#fff',
-                    color: catActiva === c.id ? 'var(--verde)' : 'var(--texto-suave)',
-                    fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer'
-                  }}>{c.nombre}</button>
-                ))}
-              </div>
+            {/* Búsqueda */}
+            <div style={{ marginBottom: 16, position: 'relative' }}>
+              <RiSearchLine style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--texto-suave)' }} />
+              <input className="input-mm" placeholder="Buscar producto..." value={busqueda}
+                onChange={e => setBusqueda(e.target.value)} style={{ paddingLeft: 40 }} />
             </div>
 
             {/* Grid productos */}
