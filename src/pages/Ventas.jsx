@@ -198,23 +198,38 @@ const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
         <p style={{ color: 'var(--texto-suave)', fontSize: '0.85rem', marginBottom: 24 }}>Venta #{venta.id}</p>
 
         <div style={{ background: 'var(--crema)', borderRadius: 14, padding: '16px 20px', marginBottom: 20, textAlign: 'left' }}>
-          {venta.items?.map((item, i) => (
-            <div key={i} style={{ marginBottom: 8, fontSize: '0.85rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <div>
-                  <span style={{ fontWeight: 600 }}>{item.producto_nombre}</span>
-                  <span style={{ color: 'var(--texto-suave)' }}> x{item.cantidad}</span>
+          {venta.items?.map((item, i) => {
+            const totalToppingsUnit = (item.toppings || []).reduce((a, t) => a + (parseFloat(t.precio_cop) || 0), 0);
+            const precioProductoUnit = parseFloat(item.precio_unitario_cop) - totalToppingsUnit;
+            const subtotalProducto = precioProductoUnit * item.cantidad;
+            return (
+              <div key={i} style={{ marginBottom: 8, fontSize: '0.85rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div>
+                    <span style={{ fontWeight: 600 }}>{item.producto_nombre}</span>
+                    <span style={{ color: 'var(--texto-suave)' }}> x{item.cantidad}</span>
+                  </div>
+                  <span style={{ fontWeight: 700 }}>${Number(subtotalProducto).toLocaleString('es-CO')}</span>
                 </div>
-                <span style={{ fontWeight: 700 }}>${Number(item.subtotal_cop).toLocaleString('es-CO')}</span>
+                {item.toppings?.length > 0 && item.toppings.map((t, ti) => (
+                  <div key={ti} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--texto-suave)', marginTop: 2 }}>
+                    <span>+ {t.topping_nombre} x{item.cantidad}</span>
+                    <span>
+                      {parseFloat(t.precio_cop) > 0
+                        ? `$${Number(parseFloat(t.precio_cop) * item.cantidad).toLocaleString('es-CO')}`
+                        : 'Gratis'}
+                    </span>
+                  </div>
+                ))}
+                {item.toppings?.length > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', fontWeight: 700, marginTop: 3 }}>
+                    <span>Subtotal</span>
+                    <span>${Number(item.subtotal_cop).toLocaleString('es-CO')}</span>
+                  </div>
+                )}
               </div>
-              {item.toppings?.length > 0 && item.toppings.map((t, ti) => (
-                <div key={ti} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--texto-suave)', marginTop: 2 }}>
-                  <span>+ {t.topping_nombre}</span>
-                  <span>{parseFloat(t.precio_cop) > 0 ? `$${Number(t.precio_cop).toLocaleString('es-CO')}` : 'Gratis'}</span>
-                </div>
-              ))}
-            </div>
-          ))}
+            );
+          })}
           <div style={{ borderTop: '1px dashed #E0E0E0', marginTop: 10, paddingTop: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
               <span>Total {venta.moneda_pago}</span>
@@ -1172,27 +1187,43 @@ export default function Ventas() {
 
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 10 }}>PRODUCTOS</div>
-              {ventaDetalle.items?.map((item, i) => (
-                <div key={i} style={{ padding: '10px 14px', background: '#F9F9F9', borderRadius: 10, marginBottom: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                    <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>{item.producto_nombre} x{item.cantidad}</span>
-                    <span style={{ fontWeight: 700, color: 'var(--verde)' }}>${Number(item.subtotal_cop).toLocaleString('es-CO')}</span>
-                  </div>
-                  {item.toppings?.length > 0 && (
-                    <div style={{ marginTop: 2, marginBottom: 4 }}>
-                      {item.toppings.map((t, ti) => (
-                        <div key={ti} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--texto-suave)' }}>
-                          <span>+ {t.topping_nombre}</span>
-                          <span>{parseFloat(t.precio_cop) > 0 ? `$${Number(t.precio_cop).toLocaleString('es-CO')}` : 'Gratis'}</span>
-                        </div>
-                      ))}
+              {ventaDetalle.items?.map((item, i) => {
+                // El precio_unitario_cop guardado en la venta ya viene con los toppings
+                // sumados. Para mostrarlo claro al cliente, separamos: precio base del
+                // producto (sin toppings) + cada topping con su propio precio.
+                const totalToppingsUnit = (item.toppings || []).reduce((a, t) => a + (parseFloat(t.precio_cop) || 0), 0);
+                const precioProductoUnit = parseFloat(item.precio_unitario_cop) - totalToppingsUnit;
+                const subtotalProducto = precioProductoUnit * item.cantidad;
+                return (
+                  <div key={i} style={{ padding: '10px 14px', background: '#F9F9F9', borderRadius: 10, marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>{item.producto_nombre} x{item.cantidad}</span>
+                      <span style={{ fontWeight: 700 }}>${Number(subtotalProducto).toLocaleString('es-CO')}</span>
                     </div>
-                  )}
-                  <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)', marginTop: 2 }}>
-                    Ganancia: <span style={{ color: '#2E7D32', fontWeight: 600 }}>${Number(item.ganancia_cop).toLocaleString('es-CO')}</span>
+                    {item.toppings?.length > 0 && (
+                      <div style={{ marginTop: 2, marginBottom: 4 }}>
+                        {item.toppings.map((t, ti) => (
+                          <div key={ti} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--texto-suave)' }}>
+                            <span>+ {t.topping_nombre} x{item.cantidad}</span>
+                            <span>
+                              {parseFloat(t.precio_cop) > 0
+                                ? `$${Number(parseFloat(t.precio_cop) * item.cantidad).toLocaleString('es-CO')}`
+                                : 'Gratis'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700, color: 'var(--verde)', borderTop: '1px dashed #E0E0E0', paddingTop: 4, marginTop: 4 }}>
+                      <span>Subtotal</span>
+                      <span>${Number(item.subtotal_cop).toLocaleString('es-CO')}</span>
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)', marginTop: 2 }}>
+                      Ganancia: <span style={{ color: '#2E7D32', fontWeight: 600 }}>${Number(item.ganancia_cop).toLocaleString('es-CO')}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div style={{ background: 'var(--verde)', borderRadius: 14, padding: '16px 20px' }}>
