@@ -961,6 +961,18 @@ export default function Ventas() {
                       onChange={e => setMontoRecibido(e.target.value)}
                       style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: 8 }} />
 
+                    <button type="button"
+                      onClick={() => setMontoRecibido(totalConvertido())}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        width: '100%', marginBottom: 8, padding: '9px 12px',
+                        borderRadius: 10, border: '1px dashed var(--verde)',
+                        background: '#F1F8E9', color: 'var(--verde)',
+                        fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer'
+                      }}>
+                      💵 Pago exacto — no entregar vuelto
+                    </button>
+
                     {montoRecibido !== '' && !isNaN(parseFloat(montoRecibido)) && (
                       vueltoCalculado() >= 0 ? (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#E8F5E9', borderRadius: 10, padding: '10px 14px' }}>
