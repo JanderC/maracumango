@@ -13,7 +13,6 @@ const menuAdmin = [
   { to: '/toppings', icon: <RiCupLine />, label: 'Toppings' },
   { to: '/productos',         icon: <RiShoppingBagLine />,        label: 'Productos' },
   { to: '/categorias', icon: <RiPriceTag3Line />, label: 'Categorías' },
-  { to: '/catalogo',          icon: <RiStoreLine />,              label: 'Catálogo' },
   { to: '/ventas',            icon: <RiMoneyDollarCircleLine />,  label: 'Ventas' },
   { to: '/tasas-cambio',      icon: <RiLeafLine />,               label: 'Tasas' },
   { to: '/cuentas-bancarias', icon: <RiBankLine />,               label: 'Cuentas' },

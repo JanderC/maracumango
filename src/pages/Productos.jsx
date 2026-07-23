@@ -43,10 +43,10 @@ const formVacio = {
   nombre: '', descripcion: '', categoria_id: '', inventario_id: '',
   costo_unitario_cop: '', porcentaje_ganancia: '', precio_manual_cop: '',
   usar_precio_manual: false, tiene_toppings: false, toppings_ids: [], codigo: '',
-  producto_padre_id: '', carpeta_id: ''
+  producto_padre_id: '', carpeta_id: '', orden: 0
 };
 
-const carpetaVacia = { nombre: '' };
+const carpetaVacia = { nombre: '', orden: 0 };
 
 export default function Productos() {
   const [productos, setProductos] = useState([]);
@@ -66,8 +66,10 @@ export default function Productos() {
   const [receta, setReceta] = useState([]); // [{ inventario_id, cantidad_requerida, unidad, insumo_nombre }]
   const [nuevoInsumo, setNuevoInsumo] = useState({ inventario_id: '', cantidad_requerida: '', unidad: '' });
 
-  // ── Carpetas (agrupador liviano de productos) ──
-  const [carpetas, setCarpetas] = useState([]);
+  // ── Carpetas (agrupador liviano de productos, ahora con subcarpetas) ──
+  const [carpetas, setCarpetas] = useState([]); // carpetas del nivel actual dentro del modal de gestión
+  const [carpetasTodas, setCarpetasTodas] = useState([]); // TODAS las carpetas planas, para el selector del producto
+  const [pilaCarpetasAdmin, setPilaCarpetasAdmin] = useState([]); // breadcrumb: [{ id, nombre }, ...]
   const [modalCarpetas, setModalCarpetas] = useState(false);
   const [carpetaSel, setCarpetaSel] = useState(null);
   const [carpetaForm, setCarpetaForm] = useState(carpetaVacia);
@@ -96,13 +98,14 @@ export default function Productos() {
   const cargar = async () => {
     setCargando(true);
     try {
-      const [r1, r2, r3, r4, r5, r6] = await Promise.all([
+      const [r1, r2, r3, r4, r5, r6, r7] = await Promise.all([
         API.get('/productos'),
         API.get('/categorias'),
         API.get('/inventario'),
         API.get('/toppings'),
         API.get('/tasas-cambio/activa/COP').catch(() => null),
-        API.get('/carpetas')
+        API.get('/carpetas'), // nivel raíz, para el modal de gestión
+        API.get('/carpetas?todas=true') // TODAS (planas), para el selector del producto
       ]);
       setProductos(r1.data.productos);
       setCategorias(r2.data.categorias);
@@ -110,8 +113,18 @@ export default function Productos() {
       setToppings(r4.data.toppings);
       setTasaCop(r5?.data?.tasa || null);
       setCarpetas(r6.data.carpetas || []);
+      setCarpetasTodas(r7.data.carpetas || []);
     } catch { toast.error('Error cargando productos'); }
     finally { setCargando(false); }
+  };
+
+  // Carga las carpetas de un nivel específico dentro del modal de gestión
+  // (padreId = null/undefined -> nivel raíz)
+  const cargarNivelCarpetas = async (padreId) => {
+    try {
+      const { data } = await API.get(`/carpetas${padreId ? `?carpeta_padre_id=${padreId}` : ''}`);
+      setCarpetas(data.carpetas || []);
+    } catch { toast.error('Error cargando las carpetas'); }
   };
 
   useEffect(() => { cargar(); }, []);
@@ -149,7 +162,8 @@ export default function Productos() {
         toppings_ids: p.toppings?.map(t => t.id) || [],
         codigo: p.codigo || '',
         producto_padre_id: p.producto_padre_id || '',
-        carpeta_id: p.carpeta_id || ''
+        carpeta_id: p.carpeta_id || '',
+        orden: p.orden || 0
       });
       setPrevistaImagen(p.imagen_url);
       setReceta(recetaData.insumos || []);
@@ -260,6 +274,8 @@ export default function Productos() {
   };
 
   // ── Carpetas ──
+  const nivelActualId = pilaCarpetasAdmin.length > 0 ? pilaCarpetasAdmin[pilaCarpetasAdmin.length - 1].id : null;
+
   const abrirCrearCarpeta = () => {
     setCarpetaSel(null);
     setCarpetaForm(carpetaVacia);
@@ -269,7 +285,7 @@ export default function Productos() {
 
   const abrirEditarCarpeta = (c) => {
     setCarpetaSel(c);
-    setCarpetaForm({ nombre: c.nombre });
+    setCarpetaForm({ nombre: c.nombre, orden: c.orden || 0 });
     setCarpetaImagen(null);
     setCarpetaPrevista(c.imagen_url);
   };
@@ -291,6 +307,9 @@ export default function Productos() {
     try {
       const fd = new FormData();
       fd.append('nombre', carpetaForm.nombre);
+      fd.append('orden', carpetaForm.orden || 0);
+      // La subcarpeta se crea dentro del nivel donde estás parado en el modal
+      if (nivelActualId) fd.append('carpeta_padre_id', nivelActualId);
       if (carpetaImagen) fd.append('imagen', carpetaImagen);
 
       if (carpetaSel) {
@@ -298,10 +317,11 @@ export default function Productos() {
         toast.success('Carpeta actualizada');
       } else {
         await API.post('/carpetas', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-        toast.success('Carpeta creada');
+        toast.success(nivelActualId ? 'Subcarpeta creada' : 'Carpeta creada');
       }
       abrirCrearCarpeta();
-      cargar();
+      await cargarNivelCarpetas(nivelActualId);
+      await cargar(); // refresca también la lista plana usada en el selector del producto
     } catch (err) {
       toast.error(err.response?.data?.mensaje || 'Error guardando la carpeta');
     } finally { setGuardandoCarpeta(false); }
@@ -310,20 +330,51 @@ export default function Productos() {
   const toggleActivoCarpeta = async (c) => {
     try {
       await API.patch(`/carpetas/${c.id}/toggle`);
-      cargar();
+      await cargarNivelCarpetas(nivelActualId);
     } catch { toast.error('Error cambiando estado de la carpeta'); }
   };
 
   const eliminarCarpeta = async (id) => {
-    if (!window.confirm('¿Eliminar esta carpeta? Los productos dentro quedarán sueltos en el catálogo.')) return;
+    if (!window.confirm('¿Eliminar esta carpeta? Los productos y subcarpetas dentro quedarán sueltos en el nivel superior.')) return;
     try {
       await API.delete(`/carpetas/${id}`);
       toast.success('Carpeta eliminada');
       if (carpetaSel?.id === id) abrirCrearCarpeta();
-      cargar();
+      await cargarNivelCarpetas(nivelActualId);
+      await cargar();
     } catch (err) {
       toast.error(err.response?.data?.mensaje || 'No se pudo eliminar la carpeta');
     }
+  };
+
+  // Entra a una carpeta dentro del modal de gestión para ver/crear sus subcarpetas
+  const entrarSubcarpetaAdmin = async (c) => {
+    setPilaCarpetasAdmin(prev => [...prev, { id: c.id, nombre: c.nombre }]);
+    abrirCrearCarpeta();
+    await cargarNivelCarpetas(c.id);
+  };
+
+  // Vuelve al nivel raíz de carpetas dentro del modal
+  const volverRaizCarpetasAdmin = async () => {
+    setPilaCarpetasAdmin([]);
+    abrirCrearCarpeta();
+    await cargarNivelCarpetas(null);
+  };
+
+  // Navega directo a un nivel del breadcrumb dentro del modal
+  const irANivelCarpetasAdmin = async (indice) => {
+    const nuevaPila = pilaCarpetasAdmin.slice(0, indice + 1);
+    setPilaCarpetasAdmin(nuevaPila);
+    abrirCrearCarpeta();
+    await cargarNivelCarpetas(nuevaPila[nuevaPila.length - 1].id);
+  };
+
+  // Abre el modal siempre desde el nivel raíz
+  const abrirModalCarpetas = async () => {
+    setPilaCarpetasAdmin([]);
+    abrirCrearCarpeta();
+    await cargarNivelCarpetas(null);
+    setModalCarpetas(true);
   };
 
   const filtrados = productos.filter(p =>
@@ -341,7 +392,7 @@ export default function Productos() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={() => { abrirCrearCarpeta(); setModalCarpetas(true); }} style={{
+          <button onClick={abrirModalCarpetas} style={{
             display: 'flex', alignItems: 'center', gap: 8,
             background: '#fff', border: '2px solid #E0E0E0', borderRadius: 10,
             padding: '10px 16px', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.85rem',
@@ -533,17 +584,28 @@ export default function Productos() {
         <div style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <label style={{ fontSize: '0.82rem', fontWeight: 600, display: 'block' }}>📁 Carpeta (opcional)</label>
-            <button type="button" onClick={() => { abrirCrearCarpeta(); setModalCarpetas(true); }} style={{
+            <button type="button" onClick={abrirModalCarpetas} style={{
               background: 'none', border: 'none', color: 'var(--verde)', fontWeight: 700,
               fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Poppins'
             }}>+ Nueva carpeta</button>
           </div>
           <select className="input-mm" value={form.carpeta_id} onChange={e => setForm({ ...form, carpeta_id: e.target.value })}>
             <option value="">Sin carpeta (se muestra suelto)</option>
-            {carpetas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            {carpetasTodas.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.carpeta_padre_nombre ? `${c.carpeta_padre_nombre} / ${c.nombre}` : c.nombre}
+              </option>
+            ))}
           </select>
           <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)', marginTop: 6 }}>
             Si eliges una carpeta, este producto no aparecerá suelto en el catálogo/POS — aparecerá dentro de esa carpeta al hacer clic en ella. La carpeta es solo un agrupador visual (nombre + imagen), no tiene inventario ni costo propio.
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
+            <label style={{ fontSize: '0.82rem', fontWeight: 600, whiteSpace: 'nowrap' }}>🔢 Orden:</label>
+            <input className="input-mm" type="number" style={{ maxWidth: 100 }}
+              value={form.orden}
+              onChange={e => setForm({ ...form, orden: e.target.value })} />
+            <span style={{ fontSize: '0.72rem', color: 'var(--texto-suave)' }}>menor número = aparece primero (dentro de su carpeta o del catálogo suelto)</span>
           </div>
         </div>
 
@@ -839,6 +901,36 @@ export default function Productos() {
 
       {/* Modal gestión de carpetas */}
       <Modal show={modalCarpetas} onClose={() => setModalCarpetas(false)} titulo="📁 Carpetas de productos">
+        {/* Breadcrumb de navegación entre carpeta y subcarpetas */}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+          <button onClick={volverRaizCarpetasAdmin} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: pilaCarpetasAdmin.length === 0 ? 'var(--verde)' : '#fff',
+            color: pilaCarpetasAdmin.length === 0 ? '#fff' : 'var(--texto-suave)',
+            border: '2px solid #E0E0E0', borderRadius: 10,
+            padding: '6px 10px', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer'
+          }}>
+            🏠 Raíz
+          </button>
+          {pilaCarpetasAdmin.map((c, idx) => (
+            <span key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ color: 'var(--texto-suave)' }}>/</span>
+              <button
+                onClick={() => irANivelCarpetasAdmin(idx)}
+                disabled={idx === pilaCarpetasAdmin.length - 1}
+                style={{
+                  background: idx === pilaCarpetasAdmin.length - 1 ? 'var(--verde)' : '#fff',
+                  color: idx === pilaCarpetasAdmin.length - 1 ? '#fff' : 'var(--texto-suave)',
+                  border: '2px solid #E0E0E0', borderRadius: 10,
+                  padding: '6px 10px', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.78rem',
+                  cursor: idx === pilaCarpetasAdmin.length - 1 ? 'default' : 'pointer'
+                }}>
+                📁 {c.nombre}
+              </button>
+            </span>
+          ))}
+        </div>
+
         <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'flex-start' }}>
           <div style={{
             width: 64, height: 64, borderRadius: 12, background: 'var(--crema)',
@@ -854,12 +946,25 @@ export default function Productos() {
               style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
           </div>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <input className="input-mm" placeholder="Nombre de la carpeta (ej: Maracumango)"
+            <input className="input-mm"
+              placeholder={nivelActualId ? 'Nombre de la subcarpeta (ej: Grande)' : 'Nombre de la carpeta (ej: Maracumango)'}
               value={carpetaForm.nombre}
-              onChange={e => setCarpetaForm({ nombre: e.target.value })} />
+              onChange={e => setCarpetaForm({ ...carpetaForm, nombre: e.target.value })} />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <label style={{ fontSize: '0.78rem', color: 'var(--texto-suave)', whiteSpace: 'nowrap' }}>Orden:</label>
+              <input className="input-mm" type="number" style={{ maxWidth: 90 }}
+                value={carpetaForm.orden}
+                onChange={e => setCarpetaForm({ ...carpetaForm, orden: e.target.value })} />
+              <span style={{ fontSize: '0.72rem', color: 'var(--texto-suave)' }}>menor número = aparece primero</span>
+            </div>
+            {nivelActualId && !carpetaSel && (
+              <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)' }}>
+                Se creará como subcarpeta de <strong>{pilaCarpetasAdmin[pilaCarpetasAdmin.length - 1].nombre}</strong>.
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn-verde" onClick={guardarCarpeta} disabled={guardandoCarpeta} style={{ flex: 1 }}>
-                {guardandoCarpeta ? 'Guardando...' : carpetaSel ? 'Actualizar carpeta' : 'Crear carpeta'}
+                {guardandoCarpeta ? 'Guardando...' : carpetaSel ? 'Actualizar carpeta' : nivelActualId ? 'Crear subcarpeta' : 'Crear carpeta'}
               </button>
               {carpetaSel && (
                 <button onClick={abrirCrearCarpeta} style={{
@@ -874,20 +979,29 @@ export default function Productos() {
         <div style={{ borderTop: '1px solid #F0F0F0', paddingTop: 14 }}>
           {carpetas.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 20, color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
-              Todavía no has creado ninguna carpeta.
+              {nivelActualId ? 'Esta carpeta todavía no tiene subcarpetas.' : 'Todavía no has creado ninguna carpeta.'}
             </div>
           ) : carpetas.map(c => (
             <div key={c.id} style={{
               display: 'flex', alignItems: 'center', gap: 12, padding: '10px 8px',
               borderBottom: '1px solid #F5F5F5', opacity: c.activo ? 1 : 0.5
             }}>
-              <div style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--crema)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div
+                onClick={() => entrarSubcarpetaAdmin(c)}
+                title="Ver subcarpetas"
+                style={{ width: 40, height: 40, borderRadius: 8, background: 'var(--crema)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 {c.imagen_url ? <img src={c.imagen_url} alt={c.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <RiImageLine style={{ color: '#BDBDBD' }} />}
               </div>
-              <div style={{ flex: 1 }}>
+              <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => entrarSubcarpetaAdmin(c)}>
                 <div style={{ fontWeight: 600, fontSize: '0.86rem' }}>{c.nombre}</div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)' }}>{c.total_productos || 0} producto(s) dentro</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)' }}>
+                  {c.total_productos || 0} producto(s) · {c.total_subcarpetas || 0} subcarpeta(s)
+                </div>
               </div>
+              <button onClick={() => entrarSubcarpetaAdmin(c)} title="Ver subcarpetas"
+                style={{ background: '#F3E5F5', border: 'none', borderRadius: 8, padding: '6px 8px', color: '#6A1B9A', cursor: 'pointer' }}>
+                📂
+              </button>
               <button onClick={() => toggleActivoCarpeta(c)} title={c.activo ? 'Desactivar' : 'Activar'}
                 style={{ background: c.activo ? '#FFF3E0' : '#E8F5E9', border: 'none', borderRadius: 8, padding: '6px 8px', color: c.activo ? '#E65100' : '#1B5E20', cursor: 'pointer' }}>
                 <RiToggleLine />
