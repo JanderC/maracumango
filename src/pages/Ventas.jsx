@@ -627,12 +627,19 @@ export default function Ventas() {
   // Combina carpetas + productos de un mismo nivel y los ordena por "orden"
   // (menor primero), sin importar si es carpeta o producto — así una carpeta
   // con orden 1 sale antes que un producto con orden 2, tal cual estén mezclados.
+  //
+  // IMPORTANTE: el campo "orden" viene con default 0 en la base de datos, así
+  // que 0 significa "sin prioridad asignada", no "prioridad máxima". Por eso
+  // cualquier valor > 0 siempre pasa primero (ascendente); lo que se quedó en
+  // 0 cae al final, ordenado alfabéticamente entre sí.
+  const clavePrioridad = (n) => (n && n > 0 ? n : Infinity);
+
   const combinarYOrdenar = (listaCarpetas, listaProductos) => {
     const items = [
       ...listaCarpetas.map(c => ({ tipo: 'carpeta', data: c, orden: Number(c.orden) || 0, nombre: c.nombre })),
       ...listaProductos.map(p => ({ tipo: 'producto', data: p, orden: Number(p.orden) || 0, nombre: p.nombre }))
     ];
-    items.sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre));
+    items.sort((a, b) => clavePrioridad(a.orden) - clavePrioridad(b.orden) || a.nombre.localeCompare(b.nombre));
     return items;
   };
 
