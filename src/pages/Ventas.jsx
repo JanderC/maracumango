@@ -624,6 +624,18 @@ export default function Ventas() {
     c.nombre.toLowerCase().includes(busqueda.toLowerCase())
   );
 
+  // Combina carpetas + productos de un mismo nivel y los ordena por "orden"
+  // (menor primero), sin importar si es carpeta o producto — así una carpeta
+  // con orden 1 sale antes que un producto con orden 2, tal cual estén mezclados.
+  const combinarYOrdenar = (listaCarpetas, listaProductos) => {
+    const items = [
+      ...listaCarpetas.map(c => ({ tipo: 'carpeta', data: c, orden: Number(c.orden) || 0, nombre: c.nombre })),
+      ...listaProductos.map(p => ({ tipo: 'producto', data: p, orden: Number(p.orden) || 0, nombre: p.nombre }))
+    ];
+    items.sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre));
+    return items;
+  };
+
   /* ════ RENDER ════ */
   return (
     <div>
@@ -705,18 +717,14 @@ export default function Ventas() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
-                  {/* Subcarpetas dentro de esta carpeta */}
-                  {(carpetaActiva.subcarpetas || [])
-                    .filter(c => c.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-                    .map(c => (
-                      <CarpetaCard key={`subcarpeta-${c.id}`} carpeta={c} onClick={abrirCarpeta} />
-                    ))}
-                  {/* Productos directos de esta carpeta */}
-                  {carpetaActiva.productos
-                    .filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
-                    .map(p => (
-                      <ProductoCard key={p.id} prod={p} onClick={clickProducto} />
-                    ))}
+                  {combinarYOrdenar(
+                    (carpetaActiva.subcarpetas || []).filter(c => c.nombre.toLowerCase().includes(busqueda.toLowerCase())),
+                    carpetaActiva.productos.filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+                  ).map(item => (
+                    item.tipo === 'carpeta'
+                      ? <CarpetaCard key={`subcarpeta-${item.data.id}`} carpeta={item.data} onClick={abrirCarpeta} />
+                      : <ProductoCard key={`producto-${item.data.id}`} prod={item.data} onClick={clickProducto} />
+                  ))}
                   {carpetaActiva.productos.length === 0 && (carpetaActiva.subcarpetas || []).length === 0 && (
                     <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 48, color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
                       Esta carpeta no tiene productos ni subcarpetas disponibles todavía.
@@ -726,11 +734,10 @@ export default function Ventas() {
               </>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
-                {carpetasFiltradasPOS.map(c => (
-                  <CarpetaCard key={`carpeta-${c.id}`} carpeta={c} onClick={abrirCarpeta} />
-                ))}
-                {filtradosPOS.map(p => (
-                  <ProductoCard key={p.id} prod={p} onClick={clickProducto} />
+                {combinarYOrdenar(carpetasFiltradasPOS, filtradosPOS).map(item => (
+                  item.tipo === 'carpeta'
+                    ? <CarpetaCard key={`carpeta-${item.data.id}`} carpeta={item.data} onClick={abrirCarpeta} />
+                    : <ProductoCard key={`producto-${item.data.id}`} prod={item.data} onClick={clickProducto} />
                 ))}
                 {filtradosPOS.length === 0 && carpetasFiltradasPOS.length === 0 && (
                   <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 48, color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
