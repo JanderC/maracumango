@@ -194,8 +194,8 @@ const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
         boxShadow: '0 20px 60px rgba(0,0,0,0.25)'
       }}>
         <div style={{ fontSize: 52, marginBottom: 8 }}>✅</div>
-        <h4 style={{ fontWeight: 800, color: 'var(--verde)', marginBottom: 4 }}>¡Venta registrada!</h4>
-        <p style={{ color: 'var(--texto-suave)', fontSize: '0.85rem', marginBottom: 24 }}>Venta #{venta.id}</p>
+        <h4 style={{ fontWeight: 800, color: 'var(--verde)', marginBottom: 4 }}>¡Pedido registrado!</h4>
+        <p style={{ color: 'var(--texto-suave)', fontSize: '0.85rem', marginBottom: 24 }}>Pedido #{venta.id}</p>
 
         <div style={{ background: 'var(--crema)', borderRadius: 14, padding: '16px 20px', marginBottom: 20, textAlign: 'left' }}>
           {venta.items?.map((item, i) => {
@@ -283,7 +283,7 @@ const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
             🖨️ Imprimir orden
           </button>
           <button className="btn-verde" style={{ flex: 1, padding: 13 }} onClick={onClose}>
-            Nueva venta
+            Nuevo pedido
           </button>
         </div>
       </div>
@@ -295,6 +295,13 @@ const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
    PÁGINA PRINCIPAL
 ═══════════════════════════════════ */
 export default function Ventas() {
+  // ⚠️ Ajusta esta lectura si en tu app el usuario/rol se guarda con otra
+  // clave de localStorage o viene de un contexto/AuthProvider distinto.
+  const usuarioActual = (() => {
+    try { return JSON.parse(localStorage.getItem('usuario')); } catch { return null; }
+  })();
+  const esAdmin = usuarioActual?.rol === 'admin';
+
   const [vista, setVista] = useState('pos'); // pos | historial
 
   /* POS */
@@ -302,7 +309,8 @@ export default function Ventas() {
   const [modalVariantes, setModalVariantes] = useState(null); // { padre, variantes }
   const [cargandoVariantes, setCargandoVariantes] = useState(false);
   const [carpetas, setCarpetas] = useState([]);
-  const [carpetaActiva, setCarpetaActiva] = useState(null); // { id, nombre, productos } — pantalla completa, no modal
+  const [carpetaActiva, setCarpetaActiva] = useState(null); // { id, nombre, productos, subcarpetas } — pantalla completa, no modal
+  const [pilaCarpetas, setPilaCarpetas] = useState([]); // breadcrumb: [{ id, nombre }, ...] para navegar subcarpetas
   const [cargandoCarpeta, setCargandoCarpeta] = useState(false);
   const [categorias, setCategorias] = useState([]);
   const [tasas, setTasas] = useState([]);
@@ -401,17 +409,38 @@ export default function Ventas() {
   useEffect(() => { if (vista === 'historial') cargarHistorial(); }, [vista]);
 
   /* ── POS: agregar producto ── */
-  // Abre una carpeta y trae los productos que contiene (pantalla completa, no modal)
-  const abrirCarpeta = async (carpeta) => {
+  // Carga el contenido (subcarpetas + productos) de una carpeta por id, sin tocar la pila de breadcrumbs
+  const cargarContenidoCarpeta = async (id) => {
     setCargandoCarpeta(true);
     try {
-      const { data } = await API.get(`/carpetas/${carpeta.id}`);
-      setCarpetaActiva({ ...data.carpeta, productos: data.productos || [] });
+      const { data } = await API.get(`/carpetas/${id}`);
+      setCarpetaActiva({
+        ...data.carpeta,
+        productos: data.productos || [],
+        subcarpetas: data.subcarpetas || []
+      });
     } catch { toast.error('Error cargando la carpeta'); }
     finally { setCargandoCarpeta(false); }
   };
 
-  const cerrarCarpeta = () => setCarpetaActiva(null);
+  // Abre una carpeta (o subcarpeta) y la agrega al final del breadcrumb
+  const abrirCarpeta = async (carpeta) => {
+    setPilaCarpetas(prev => [...prev, { id: carpeta.id, nombre: carpeta.nombre }]);
+    await cargarContenidoCarpeta(carpeta.id);
+  };
+
+  // Vuelve a la raíz (grid de carpetas de primer nivel)
+  const cerrarCarpeta = () => {
+    setCarpetaActiva(null);
+    setPilaCarpetas([]);
+  };
+
+  // Navega directo a un nivel del breadcrumb (0 = primera carpeta abierta)
+  const irANivelBreadcrumb = async (indice) => {
+    const nuevaPila = pilaCarpetas.slice(0, indice + 1);
+    setPilaCarpetas(nuevaPila);
+    await cargarContenidoCarpeta(nuevaPila[nuevaPila.length - 1].id);
+  };
 
   // Ya no se abre ningún modal al seleccionar un producto: siempre se agrega
   // directo al carrito sin toppings. Los toppings se eligen después, desde
@@ -540,7 +569,7 @@ export default function Ventas() {
       setModalTicket(true);
       if (imprimirActivo) imprimirOrdenPreparacion(data.venta);
     } catch (err) {
-      toast.error(err.response?.data?.mensaje || 'Error procesando venta');
+      toast.error(err.response?.data?.mensaje || 'Error procesando pedido');
     } finally { setProcesando(false); }
   };
 
@@ -577,11 +606,11 @@ export default function Ventas() {
     setAnulando(true);
     try {
       await API.patch(`/ventas/${ventaAAnular}/anular`, { motivo: motivoAnular, contrasena: contrasenaAnular });
-      toast.success('Venta anulada exitosamente');
+      toast.success('Pedido anulado exitosamente');
       cerrarModalAnular();
       cargarHistorial();
     } catch (err) {
-      toast.error(err.response?.data?.mensaje || 'Error anulando la venta');
+      toast.error(err.response?.data?.mensaje || 'Error anulando el pedido');
     } finally { setAnulando(false); }
   };
 
@@ -601,7 +630,7 @@ export default function Ventas() {
       {/* Header + tabs */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 2 }}>Ventas 🧾</h1>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 2 }}>Pedidos 🧾</h1>
           <p style={{ color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
             {vista === 'pos' ? 'Punto de venta — arma el pedido del cliente' : 'Historial de transacciones'}
           </p>
@@ -646,24 +675,51 @@ export default function Ventas() {
               </div>
             ) : carpetaActiva ? (
               <>
-                <button onClick={cerrarCarpeta} style={{
-                  display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14,
-                  background: '#fff', border: '2px solid #E0E0E0', borderRadius: 10,
-                  padding: '8px 14px', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.82rem',
-                  color: 'var(--texto-suave)', cursor: 'pointer'
-                }}>
-                  ← Volver a todos los productos
-                </button>
-                <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: 12 }}>📁 {carpetaActiva.nombre}</div>
+                {/* Breadcrumb: Inicio > Carpeta > Subcarpeta > ... */}
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                  <button onClick={cerrarCarpeta} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: '#fff', border: '2px solid #E0E0E0', borderRadius: 10,
+                    padding: '7px 12px', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.8rem',
+                    color: 'var(--texto-suave)', cursor: 'pointer'
+                  }}>
+                    ← Inicio
+                  </button>
+                  {pilaCarpetas.map((c, idx) => (
+                    <span key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ color: 'var(--texto-suave)' }}>/</span>
+                      <button
+                        onClick={() => irANivelBreadcrumb(idx)}
+                        disabled={idx === pilaCarpetas.length - 1}
+                        style={{
+                          background: idx === pilaCarpetas.length - 1 ? 'var(--verde)' : '#fff',
+                          color: idx === pilaCarpetas.length - 1 ? '#fff' : 'var(--texto-suave)',
+                          border: '2px solid #E0E0E0', borderRadius: 10,
+                          padding: '7px 12px', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.8rem',
+                          cursor: idx === pilaCarpetas.length - 1 ? 'default' : 'pointer'
+                        }}>
+                        📁 {c.nombre}
+                      </button>
+                    </span>
+                  ))}
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+                  {/* Subcarpetas dentro de esta carpeta */}
+                  {(carpetaActiva.subcarpetas || [])
+                    .filter(c => c.nombre.toLowerCase().includes(busqueda.toLowerCase()))
+                    .map(c => (
+                      <CarpetaCard key={`subcarpeta-${c.id}`} carpeta={c} onClick={abrirCarpeta} />
+                    ))}
+                  {/* Productos directos de esta carpeta */}
                   {carpetaActiva.productos
                     .filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
                     .map(p => (
                       <ProductoCard key={p.id} prod={p} onClick={clickProducto} />
                     ))}
-                  {carpetaActiva.productos.length === 0 && (
+                  {carpetaActiva.productos.length === 0 && (carpetaActiva.subcarpetas || []).length === 0 && (
                     <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 48, color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
-                      Esta carpeta no tiene productos disponibles todavía.
+                      Esta carpeta no tiene productos ni subcarpetas disponibles todavía.
                     </div>
                   )}
                 </div>
@@ -998,7 +1054,7 @@ export default function Ventas() {
                   }}
                 >
                   {procesando ? <span className="spinner-border spinner-border-sm" /> : <RiCheckLine />}
-                  {procesando ? 'Procesando...' : 'Registrar venta'}
+                  {procesando ? 'Procesando...' : 'Registrar pedido'}
                 </button>
               </div>
             )}
@@ -1115,7 +1171,7 @@ export default function Ventas() {
                             <button onClick={() => verDetalle(v.id)} title="Ver detalle" style={{ background: '#E8F5E9', border: 'none', borderRadius: 8, padding: '6px 9px', color: '#1B5E20', cursor: 'pointer', fontSize: '0.95rem' }}>
                               <RiEyeLine />
                             </button>
-                            {!v.anulada && (
+                            {esAdmin && !v.anulada && (
                               <button onClick={() => abrirAnular(v.id)} title="Anular" style={{ background: '#FFEBEE', border: 'none', borderRadius: 8, padding: '6px 9px', color: '#C62828', cursor: 'pointer', fontSize: '0.95rem' }}>
                                 <RiCloseLine />
                               </button>
@@ -1153,7 +1209,7 @@ export default function Ventas() {
       />
 
       {/* Modal detalle venta */}
-      <Modal show={modalDetalle} onClose={() => setModalDetalle(false)} titulo={`Detalle venta #${ventaDetalle?.id}`} maxWidth={480}>
+      <Modal show={modalDetalle} onClose={() => setModalDetalle(false)} titulo={`Detalle pedido #${ventaDetalle?.id}`} maxWidth={480}>
         {ventaDetalle && (
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
@@ -1218,9 +1274,11 @@ export default function Ventas() {
                       <span>Subtotal</span>
                       <span>${Number(item.subtotal_cop).toLocaleString('es-CO')}</span>
                     </div>
-                    <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)', marginTop: 2 }}>
-                      Ganancia: <span style={{ color: '#2E7D32', fontWeight: 600 }}>${Number(item.ganancia_cop).toLocaleString('es-CO')}</span>
-                    </div>
+                    {esAdmin && (
+                      <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)', marginTop: 2 }}>
+                        Ganancia: <span style={{ color: '#2E7D32', fontWeight: 600 }}>${Number(item.ganancia_cop).toLocaleString('es-CO')}</span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1245,7 +1303,7 @@ export default function Ventas() {
 
             {ventaDetalle.anulada && (
               <div style={{ marginTop: 14, padding: '14px 16px', background: '#FFEBEE', borderRadius: 12, fontSize: '0.82rem' }}>
-                <div style={{ fontWeight: 800, color: '#C62828', marginBottom: 4 }}>🚫 Venta anulada</div>
+                <div style={{ fontWeight: 800, color: '#C62828', marginBottom: 4 }}>🚫 Pedido anulado</div>
                 <div style={{ color: '#C62828' }}>Motivo: {ventaDetalle.motivo_anulacion}</div>
                 <div style={{ color: 'var(--texto-suave)', marginTop: 2 }}>
                   Por {ventaDetalle.anulado_por_nombre || '—'} · {ventaDetalle.anulada_en ? new Date(ventaDetalle.anulada_en).toLocaleString('es-VE') : ''}
@@ -1265,7 +1323,7 @@ export default function Ventas() {
       </Modal>
 
       {/* Modal anulación — Paso 1: motivo + confirmación */}
-      <Modal show={!!ventaAAnular && pasoAnular === 1} onClose={cerrarModalAnular} titulo={`Anular venta #${ventaAAnular}`} maxWidth={420}>
+      <Modal show={!!ventaAAnular && pasoAnular === 1} onClose={cerrarModalAnular} titulo={`Anular pedido #${ventaAAnular}`} maxWidth={420}>
         <div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: '#FFF3E0', borderRadius: 12, padding: '14px 16px', marginBottom: 18 }}>
             <span style={{ fontSize: '1.3rem' }}>⚠️</span>
@@ -1294,7 +1352,7 @@ export default function Ventas() {
       <Modal show={!!ventaAAnular && pasoAnular === 2} onClose={cerrarModalAnular} titulo="Confirma tu identidad" maxWidth={400}>
         <div>
           <p style={{ fontSize: '0.85rem', color: 'var(--texto-suave)', marginBottom: 16 }}>
-            Por seguridad, ingresa tu contraseña de administrador para autorizar la anulación de la venta #{ventaAAnular}.
+            Por seguridad, ingresa tu contraseña de administrador para autorizar la anulación del pedido #{ventaAAnular}.
           </p>
           <input className="input-mm" type="password" placeholder="Tu contraseña"
             value={contrasenaAnular} onChange={e => setContrasenaAnular(e.target.value)}
