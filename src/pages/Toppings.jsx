@@ -155,7 +155,7 @@ export default function Toppings() {
   // Conversiones en tiempo real desde COP (para el modal)
   const copAUSD = (cop) => {
     if (!cop || !tasas.COP || parseFloat(cop) === 0) return null;
-    return (parseFloat(cop) / tasas.COP).toFixed(4);
+    return (parseFloat(cop) / tasas.COP).toFixed(2);
   };
 
   const copABS = (cop) => {
@@ -194,7 +194,7 @@ export default function Toppings() {
           <div>
             <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)', fontWeight: 600 }}>Tasa COP activa</div>
             <div style={{ fontWeight: 800, fontSize: '1rem', color: '#E65100' }}>
-              {tasas.COP ? `${tasas.COP.toLocaleString()} COP/$` : <span style={{ color: '#BDBDBD', fontSize: '0.82rem' }}>Sin tasa</span>}
+              {tasas.COP ? `${tasas.COP.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} COP/$` : <span style={{ color: '#BDBDBD', fontSize: '0.82rem' }}>Sin tasa</span>}
             </div>
           </div>
         </div>
@@ -203,7 +203,7 @@ export default function Toppings() {
           <div>
             <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)', fontWeight: 600 }}>Tasa BS activa</div>
             <div style={{ fontWeight: 800, fontSize: '1rem', color: '#1565C0' }}>
-              {tasas.BS ? `${tasas.BS.toLocaleString()} Bs/$` : <span style={{ color: '#BDBDBD', fontSize: '0.82rem' }}>Sin tasa</span>}
+              {tasas.BS ? `${tasas.BS.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Bs/$` : <span style={{ color: '#BDBDBD', fontSize: '0.82rem' }}>Sin tasa</span>}
             </div>
           </div>
         </div>
@@ -278,7 +278,7 @@ export default function Toppings() {
                     <div>
                       <div style={{ fontSize: '0.7rem', color: '#1B5E20', fontWeight: 700 }}>Dólar USD</div>
                       <div style={{ fontSize: '0.65rem', color: 'var(--texto-suave)' }}>
-                        {tasas.COP ? `COP ÷ ${tasas.COP.toLocaleString()}` : 'Sin tasa COP'}
+                        {tasas.COP ? `COP ÷ ${tasas.COP.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Sin tasa COP'}
                       </div>
                     </div>
                   </div>
@@ -286,7 +286,7 @@ export default function Toppings() {
                     {!t.precio_cop || parseFloat(t.precio_cop) === 0
                       ? 'Gratis'
                       : t.precio_usd
-                        ? `$${parseFloat(t.precio_usd).toFixed(4)}`
+                        ? `$${parseFloat(t.precio_usd).toFixed(2)}`
                         : <span style={{ color: '#BDBDBD', fontSize: '0.78rem' }}>Sin tasa</span>
                     }
                   </div>
@@ -299,7 +299,7 @@ export default function Toppings() {
                     <div>
                       <div style={{ fontSize: '0.7rem', color: '#1565C0', fontWeight: 700 }}>Bolívares BS</div>
                       <div style={{ fontSize: '0.65rem', color: 'var(--texto-suave)' }}>
-                        {tasas.BS ? `USD × ${tasas.BS.toLocaleString()}` : 'Sin tasa BS'}
+                        {tasas.BS ? `USD × ${tasas.BS.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Sin tasa BS'}
                       </div>
                     </div>
                   </div>
@@ -307,7 +307,7 @@ export default function Toppings() {
                     {!t.precio_cop || parseFloat(t.precio_cop) === 0
                       ? 'Gratis'
                       : t.precio_bs
-                        ? `Bs. ${parseFloat(t.precio_bs).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
+                        ? `Bs. ${parseFloat(t.precio_bs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                         : <span style={{ color: '#BDBDBD', fontSize: '0.78rem' }}>Sin tasa</span>
                     }
                   </div>
@@ -410,7 +410,7 @@ export default function Toppings() {
                       <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1B5E20' }}>Dólar USD</div>
                       <div style={{ fontSize: '0.68rem', color: 'var(--texto-suave)' }}>
                         {tasas.COP
-                          ? `COP$ ${parseFloat(form.precio_cop || 0).toLocaleString()} ÷ ${tasas.COP.toLocaleString()}`
+                          ? `COP$ ${parseFloat(form.precio_cop || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ÷ ${tasas.COP.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                           : 'Sin tasa COP registrada'
                         }
                       </div>
@@ -434,7 +434,7 @@ export default function Toppings() {
                       <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1565C0' }}>Bolívares BS</div>
                       <div style={{ fontSize: '0.68rem', color: 'var(--texto-suave)' }}>
                         {tasas.BS && tasas.COP
-                          ? `USD × ${tasas.BS.toLocaleString()}`
+                          ? `USD × ${tasas.BS.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                           : 'Sin tasa BS registrada'
                         }
                       </div>
@@ -444,7 +444,7 @@ export default function Toppings() {
                     {parseFloat(form.precio_cop) === 0
                       ? 'Gratis'
                       : copABS(form.precio_cop)
-                        ? `Bs. ${parseFloat(copABS(form.precio_cop)).toLocaleString('es-VE', { minimumFractionDigits: 2 })}`
+                        ? `Bs. ${parseFloat(copABS(form.precio_cop)).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                         : <span style={{ color: '#BDBDBD', fontSize: '0.82rem' }}>Sin tasa</span>
                     }
                   </div>
