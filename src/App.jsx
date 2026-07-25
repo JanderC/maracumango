@@ -57,7 +57,7 @@ const AppRoutes = () => {
         <Route path="cuentas-bancarias" element={<RutaProtegida roles={['admin']}><CuentasBancarias /></RutaProtegida>} />
         <Route path="reportes" element={<RutaProtegida roles={['admin']}><Reportes /></RutaProtegida>} />
         <Route path="usuarios" element={<RutaProtegida roles={['admin']}><Usuarios /></RutaProtegida>} />
-        <Route path="catalogo" element={<RutaProtegida><Catalogo /></RutaProtegida>} />
+        <Route path="catalogo" element={<RutaProtegida roles={['admin', 'cliente']}><Catalogo /></RutaProtegida>} />
         <Route path="toppings" element={<RutaProtegida roles={['admin']}><Toppings /></RutaProtegida>} />
         <Route path="categorias" element={<RutaProtegida roles={['admin']}><Categorias /></RutaProtegida>} />
       </Route>

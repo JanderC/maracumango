@@ -273,6 +273,12 @@ const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
             </div>
           </div>
         )}
+        {venta.notas && (
+          <div style={{ background: '#FFF8E1', borderRadius: 14, padding: '12px 16px', marginBottom: 20, textAlign: 'left' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#E65100', marginBottom: 3, textTransform: 'uppercase' }}>📝 Notas</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--texto)' }}>{venta.notas}</div>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={() => onImprimir(venta)} style={{
             flex: 1, padding: 13, borderRadius: 14, border: '2px solid var(--naranja)',
