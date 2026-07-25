@@ -238,6 +238,13 @@ const construirTicketESCPOS = (venta) => {
   texto(`TOTAL: $${Number(venta.total_pagado).toLocaleString('es-CO')} ${venta.moneda_pago}\n`);
   raw([ESC, 0x21, 0x00]);
 
+  if (venta.tipo_pago === 'efectivo' && venta.monto_recibido !== null && venta.monto_recibido !== undefined) {
+    texto(`Pago con: $${Number(venta.monto_recibido).toLocaleString('es-CO')}\n`);
+    raw([ESC, 0x21, 0x10]);  // negrita
+    texto(`VUELTO: $${Number(venta.vuelto || 0).toLocaleString('es-CO')}\n`);
+    raw([ESC, 0x21, 0x00]);
+  }
+
   if (venta.notas) {
     raw([ESC, 0x21, 0x08]);  // negrita (más legible en papel térmico)
     texto('\nNOTAS:\n');
