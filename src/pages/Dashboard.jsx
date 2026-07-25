@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-const fmtCOP = (v) => `$${Number(v || 0).toLocaleString('es-CO')}`;
+const fmtCOP = (v) => `$${Number(v || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtUSD = (v) => `$${parseFloat(v || 0).toFixed(2)}`;
 const pct = (a, b) => (b > 0 ? ((a / b) * 100).toFixed(1) : '0.0');
 

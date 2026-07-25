@@ -377,7 +377,7 @@ useEffect(() => { cargar(); }, []);
                       </td>
                       <td style={{ padding: '12px 14px', color: 'var(--texto-suave)' }}>{item.unidad_medida || '—'}</td>
                       <td style={{ padding: '12px 14px', fontWeight: 600 }}>${parseFloat(item.costo_total).toFixed(2)}</td>
-                      <td style={{ padding: '12px 14px', color: 'var(--naranja)', fontWeight: 600 }}>${parseFloat(item.costo_unitario || 0).toFixed(4)}</td>
+                      <td style={{ padding: '12px 14px', color: 'var(--naranja)', fontWeight: 600 }}>${parseFloat(item.costo_unitario || 0).toFixed(2)}</td>
                       <td style={{ padding: '12px 14px', color: 'var(--texto-suave)' }}>{item.proveedor || '—'}</td>
                       <td style={{ padding: '12px 14px' }}>
                         <span style={{ background: '#E3F2FD', color: '#1565C0', borderRadius: 20, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600 }}>

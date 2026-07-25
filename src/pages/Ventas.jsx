@@ -76,7 +76,7 @@ const ProductoCard = ({ prod, onClick }) => (
     <div style={{ padding: '10px 12px' }}>
       <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: 2, lineHeight: 1.2 }}>{prod.nombre}</div>
       <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--verde)' }}>
-        ${Number(prod.precio_final_cop).toLocaleString('es-CO')}
+        ${Number(prod.precio_final_cop).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </div>
     </div>
   </div>
@@ -151,7 +151,7 @@ const ModalVariantes = ({ padre, variantes, onSeleccionar, onClose }) => {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{v.nombre}</div>
-                <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--verde)' }}>${Number(v.precio_final_cop).toLocaleString('es-CO')}</div>
+                <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--verde)' }}>${Number(v.precio_final_cop).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
               </div>
             </button>
           ))}
@@ -209,14 +209,14 @@ const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
                     <span style={{ fontWeight: 600 }}>{item.producto_nombre}</span>
                     <span style={{ color: 'var(--texto-suave)' }}> x{item.cantidad}</span>
                   </div>
-                  <span style={{ fontWeight: 700 }}>${Number(subtotalProducto).toLocaleString('es-CO')}</span>
+                  <span style={{ fontWeight: 700 }}>${Number(subtotalProducto).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 {item.toppings?.length > 0 && item.toppings.map((t, ti) => (
                   <div key={ti} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--texto-suave)', marginTop: 2 }}>
                     <span>+ {t.topping_nombre} x{item.cantidad}</span>
                     <span>
                       {parseFloat(t.precio_cop) > 0
-                        ? `$${Number(parseFloat(t.precio_cop) * item.cantidad).toLocaleString('es-CO')}`
+                        ? `$${Number(parseFloat(t.precio_cop) * item.cantidad).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                         : 'Gratis'}
                     </span>
                   </div>
@@ -224,7 +224,7 @@ const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
                 {item.toppings?.length > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem', fontWeight: 700, marginTop: 3 }}>
                     <span>Subtotal</span>
-                    <span>${Number(item.subtotal_cop).toLocaleString('es-CO')}</span>
+                    <span>${Number(item.subtotal_cop).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 )}
               </div>
@@ -233,7 +233,7 @@ const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
           <div style={{ borderTop: '1px dashed #E0E0E0', marginTop: 10, paddingTop: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
               <span>Total {venta.moneda_pago}</span>
-              <span style={{ color: 'var(--verde)' }}>{simbolo} {Number(venta.total_pagado).toLocaleString()}</span>
+              <span style={{ color: 'var(--verde)' }}>{simbolo} {Number(venta.total_pagado).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             {venta.moneda_pago !== 'USD' && (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, marginTop: 4, fontSize: '0.78rem', color: 'var(--texto-suave)' }}>
@@ -265,11 +265,11 @@ const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
           <div style={{ background: '#E8F5E9', borderRadius: 14, padding: '14px 18px', marginBottom: 20, textAlign: 'left' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: 6 }}>
               <span style={{ color: 'var(--texto-suave)' }}>Pagó con</span>
-              <span style={{ fontWeight: 700 }}>{simbolo} {Number(venta.monto_recibido).toLocaleString()}</span>
+              <span style={{ fontWeight: 700 }}>{simbolo} {Number(venta.monto_recibido).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem' }}>
               <span style={{ fontWeight: 700, color: '#1B5E20' }}>Vuelto a entregar</span>
-              <span style={{ fontWeight: 800, color: '#1B5E20' }}>{simbolo} {Number(venta.vuelto).toLocaleString()}</span>
+              <span style={{ fontWeight: 800, color: '#1B5E20' }}>{simbolo} {Number(venta.vuelto).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
           </div>
         )}
@@ -806,7 +806,7 @@ export default function Ventas() {
                             {item.toppingsSeleccionados.map((t, ti) => (
                               <div key={ti} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--texto-suave)' }}>
                                 <span>+ {t.nombre}</span>
-                                <span>{parseFloat(t.precio_cop) > 0 ? `$${Number(t.precio_cop).toLocaleString('es-CO')}` : 'Gratis'}</span>
+                                <span>{parseFloat(t.precio_cop) > 0 ? `$${Number(t.precio_cop).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Gratis'}</span>
                               </div>
                             ))}
                           </div>
@@ -837,7 +837,7 @@ export default function Ventas() {
                           {toppingsExpandidoIdx === idx ? 'Ocultar toppings ▲' : '+ Añadir toppings ▼'}
                         </button>
                       </div>
-                      <span style={{ fontWeight: 700, color: 'var(--verde)', fontSize: '0.9rem' }}>${Number(subtotal).toLocaleString('es-CO')}</span>
+                      <span style={{ fontWeight: 700, color: 'var(--verde)', fontSize: '0.9rem' }}>${Number(subtotal).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
 
                     {/* Split desplegable de toppings — directo aquí en el carrito, sin modal */}
@@ -873,7 +873,7 @@ export default function Ventas() {
                                 {t.nombre}
                               </span>
                               <span style={{ fontSize: '0.74rem', fontWeight: 700, color: marcado ? 'var(--naranja)' : '#9E9E9E' }}>
-                                {parseFloat(t.precio_cop) > 0 ? `+$${Number(t.precio_cop).toLocaleString('es-CO')}` : 'Gratis'}
+                                {parseFloat(t.precio_cop) > 0 ? `+$${Number(t.precio_cop).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Gratis'}
                               </span>
                             </div>
                           );
@@ -920,7 +920,7 @@ export default function Ventas() {
                           color: parseFloat(tasa) === parseFloat(t.tasa_por_usd) ? 'var(--verde)' : 'var(--texto-suave)',
                           fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.74rem', cursor: 'pointer'
                         }}>
-                          {parseFloat(t.tasa_por_usd).toLocaleString()} {i === 0 ? '⭐' : ''}
+                          {parseFloat(t.tasa_por_usd).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {i === 0 ? '⭐' : ''}
                         </button>
                       ))}
                     </div>
@@ -934,7 +934,7 @@ export default function Ventas() {
                 {(moneda === 'COP' || moneda === 'USD') && (
                   <div style={{ marginBottom: 14, padding: '8px 12px', background: '#F0F7FF', borderRadius: 10, fontSize: '0.74rem', color: '#1565C0' }}>
                     {tasaCop
-                      ? `Tasa COP/USD vigente: ${Number(tasaCop.tasa_por_usd).toLocaleString('es-CO')}`
+                      ? `Tasa COP/USD vigente: ${Number(tasaCop.tasa_por_usd).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       : '⚠️ No hay tasa COP cargada'}
                   </div>
                 )}
@@ -983,12 +983,12 @@ export default function Ventas() {
                       vueltoCalculado() >= 0 ? (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#E8F5E9', borderRadius: 10, padding: '10px 14px' }}>
                           <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1B5E20' }}>Vuelto a entregar</span>
-                          <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#1B5E20' }}>{simbolo} {vueltoCalculado().toLocaleString()}</span>
+                          <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#1B5E20' }}>{simbolo} {vueltoCalculado().toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FFEBEE', borderRadius: 10, padding: '10px 14px' }}>
                           <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#C62828' }}>Falta por cobrar</span>
-                          <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#C62828' }}>{simbolo} {Math.abs(vueltoCalculado()).toLocaleString()}</span>
+                          <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#C62828' }}>{simbolo} {Math.abs(vueltoCalculado()).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                       )
                     )}
@@ -1034,7 +1034,7 @@ export default function Ventas() {
                     <div>
                       <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.74rem' }}>Total a cobrar</div>
                       <div style={{ color: '#fff', fontWeight: 800, fontSize: '1.4rem' }}>
-                        {simbolo} {Number(totalConvertido()).toLocaleString()}
+                        {simbolo} {Number(totalConvertido()).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -1044,7 +1044,7 @@ export default function Ventas() {
                       <div style={{ color: 'var(--naranja-claro)', fontWeight: 700 }}>
                         {moneda === 'COP'
                           ? `$${totalUSD.toFixed(2)}`
-                          : `$${Number(totalCOP).toLocaleString('es-CO')}`}
+                          : `$${Number(totalCOP).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                       </div>
                     </div>
                   </div>
@@ -1168,9 +1168,9 @@ export default function Ventas() {
                           {new Date(v.creado_en).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </td>
                         <td style={{ padding: '12px 16px', fontWeight: 600 }}>{v.cajero}</td>
-                        <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--verde)' }}>${Number(v.total_cop).toLocaleString('es-CO')}</td>
+                        <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--verde)' }}>${Number(v.total_cop).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         <td style={{ padding: '12px 16px', fontWeight: 600 }}>
-                          {v.moneda_pago === 'USD' ? '$' : v.moneda_pago === 'BS' ? 'Bs.' : 'COP$'} {parseFloat(v.total_pagado).toLocaleString()}
+                          {v.moneda_pago === 'USD' ? '$' : v.moneda_pago === 'BS' ? 'Bs.' : 'COP$'} {parseFloat(v.total_pagado).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td style={{ padding: '12px 16px' }}>
                           <span style={{
@@ -1251,7 +1251,7 @@ export default function Ventas() {
                 { label: 'Tipo pago', valor: ventaDetalle.tipo_pago },
                 { label: 'Moneda', valor: ventaDetalle.moneda_pago },
                 { label: 'Banco', valor: ventaDetalle.nombre_banco || '—' },
-                { label: 'Tasa usada', valor: ventaDetalle.tasa_cambio_usada ? parseFloat(ventaDetalle.tasa_cambio_usada).toLocaleString() : '—' },
+                { label: 'Tasa usada', valor: ventaDetalle.tasa_cambio_usada ? parseFloat(ventaDetalle.tasa_cambio_usada).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—' },
               ].map(d => (
                 <div key={d.label} style={{ background: 'var(--crema)', borderRadius: 10, padding: '10px 14px' }}>
                   <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)', fontWeight: 600 }}>{d.label.toUpperCase()}</div>
@@ -1264,11 +1264,11 @@ export default function Ventas() {
               <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
                 <div style={{ flex: 1, background: '#F3E5F5', borderRadius: 10, padding: '10px 14px' }}>
                   <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)', fontWeight: 600 }}>PAGÓ CON</div>
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{Number(ventaDetalle.monto_recibido).toLocaleString()}</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{Number(ventaDetalle.monto_recibido).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </div>
                 <div style={{ flex: 1, background: '#E8F5E9', borderRadius: 10, padding: '10px 14px' }}>
                   <div style={{ fontSize: '0.72rem', color: '#1B5E20', fontWeight: 600 }}>VUELTO</div>
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1B5E20' }}>{Number(ventaDetalle.vuelto).toLocaleString()}</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1B5E20' }}>{Number(ventaDetalle.vuelto).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </div>
               </div>
             )}
@@ -1286,7 +1286,7 @@ export default function Ventas() {
                   <div key={i} style={{ padding: '10px 14px', background: '#F9F9F9', borderRadius: 10, marginBottom: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
                       <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>{item.producto_nombre} x{item.cantidad}</span>
-                      <span style={{ fontWeight: 700 }}>${Number(subtotalProducto).toLocaleString('es-CO')}</span>
+                      <span style={{ fontWeight: 700 }}>${Number(subtotalProducto).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     {item.toppings?.length > 0 && (
                       <div style={{ marginTop: 2, marginBottom: 4 }}>
@@ -1295,7 +1295,7 @@ export default function Ventas() {
                             <span>+ {t.topping_nombre} x{item.cantidad}</span>
                             <span>
                               {parseFloat(t.precio_cop) > 0
-                                ? `$${Number(parseFloat(t.precio_cop) * item.cantidad).toLocaleString('es-CO')}`
+                                ? `$${Number(parseFloat(t.precio_cop) * item.cantidad).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                                 : 'Gratis'}
                             </span>
                           </div>
@@ -1304,11 +1304,11 @@ export default function Ventas() {
                     )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700, color: 'var(--verde)', borderTop: '1px dashed #E0E0E0', paddingTop: 4, marginTop: 4 }}>
                       <span>Subtotal</span>
-                      <span>${Number(item.subtotal_cop).toLocaleString('es-CO')}</span>
+                      <span>${Number(item.subtotal_cop).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     {esAdmin && (
                       <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)', marginTop: 2 }}>
-                        Ganancia: <span style={{ color: '#2E7D32', fontWeight: 600 }}>${Number(item.ganancia_cop).toLocaleString('es-CO')}</span>
+                        Ganancia: <span style={{ color: '#2E7D32', fontWeight: 600 }}>${Number(item.ganancia_cop).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </div>
                     )}
                   </div>
@@ -1319,11 +1319,11 @@ export default function Ventas() {
             <div style={{ background: 'var(--verde)', borderRadius: 14, padding: '16px 20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#fff', fontWeight: 700, marginBottom: 6 }}>
                 <span>Total COP</span>
-                <span>${Number(ventaDetalle.total_cop).toLocaleString('es-CO')}</span>
+                <span>${Number(ventaDetalle.total_cop).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--naranja-claro)', fontWeight: 700 }}>
                 <span>Total {ventaDetalle.moneda_pago}</span>
-                <span>{ventaDetalle.moneda_pago === 'USD' ? '$' : ventaDetalle.moneda_pago === 'BS' ? 'Bs.' : 'COP$'} {parseFloat(ventaDetalle.total_pagado).toLocaleString()}</span>
+                <span>{ventaDetalle.moneda_pago === 'USD' ? '$' : ventaDetalle.moneda_pago === 'BS' ? 'Bs.' : 'COP$'} {parseFloat(ventaDetalle.total_pagado).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
 

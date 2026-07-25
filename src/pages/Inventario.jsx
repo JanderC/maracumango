@@ -163,14 +163,13 @@ export default function Inventario() {
 
   const simboloMoneda = (moneda) => moneda === 'USD' ? '$' : moneda === 'BS' ? 'Bs.' : 'COP$';
 
-  // Formato del costo unitario: en COP siempre 2 decimales (céntimos),
-  // en USD/BS se mantienen 4 decimales para no perder precisión en montos pequeños.
+  // Formato del costo unitario: siempre 2 decimales, en cualquier moneda.
   const formatoCostoUnitario = (valor, moneda) => {
     const num = parseFloat(valor) || 0;
     if (moneda === 'COP') {
       return num.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
-    return num.toFixed(4);
+    return num.toFixed(2);
   };
 
   return (
@@ -281,7 +280,7 @@ export default function Inventario() {
 
                     {/* Costo total en moneda original */}
                     <td style={{ padding: '14px 16px', fontWeight: 600 }}>
-                      {simboloMoneda(item.moneda_compra || 'USD')} {parseFloat(item.costo_total).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                      {simboloMoneda(item.moneda_compra || 'USD')} {parseFloat(item.costo_total).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
 
                     {/* Badge moneda */}
@@ -302,7 +301,7 @@ export default function Inventario() {
                       </div>
                       {item.tasa_cambio && item.moneda_compra !== 'USD' && (
                         <div style={{ fontSize: '0.7rem', color: 'var(--texto-suave)', marginTop: 2 }}>
-                          Tasa: {parseFloat(item.tasa_cambio).toLocaleString()}
+                          Tasa: {parseFloat(item.tasa_cambio).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       )}
                     </td>
@@ -315,7 +314,7 @@ export default function Inventario() {
                             ${parseFloat(item.costo_total_usd).toFixed(2)}
                           </div>
                           <div style={{ color: 'var(--texto-suave)', fontSize: '0.72rem' }}>
-                            unit: ${parseFloat(item.costo_unitario_usd || 0).toFixed(4)}
+                            unit: ${parseFloat(item.costo_unitario_usd || 0).toFixed(2)}
                           </div>
                         </div>
                       ) : (
@@ -479,7 +478,7 @@ export default function Inventario() {
                     <div style={{ background: '#fff', borderRadius: 10, padding: '10px 14px' }}>
                       <div style={{ fontSize: '0.7rem', color: 'var(--texto-suave)', marginBottom: 4 }}>Costo unit. USD</div>
                       <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--verde)' }}>
-                        ${(parseFloat(form.costo_total) / parseFloat(form.tasa_cambio) / parseInt(form.cantidad || 1)).toFixed(4)}
+                        ${(parseFloat(form.costo_total) / parseFloat(form.tasa_cambio) / parseInt(form.cantidad || 1)).toFixed(2)}
                       </div>
                     </div>
                   </>

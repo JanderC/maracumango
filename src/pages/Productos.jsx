@@ -492,13 +492,13 @@ export default function Productos() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--texto-suave)' }}>Costo</span>
                   <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>
-                    ${Number(prod.costo_unitario_cop).toLocaleString('es-CO')} COP
+                    ${Number(prod.costo_unitario_cop).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} COP
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
                   <span style={{ fontSize: '0.75rem', color: 'var(--texto-suave)' }}>Precio venta</span>
                   <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--verde)' }}>
-                    ${Number(prod.precio_final_cop).toLocaleString('es-CO')} COP
+                    ${Number(prod.precio_final_cop).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} COP
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
@@ -727,7 +727,7 @@ export default function Productos() {
               <span style={{ fontSize: '0.85rem', color: '#1B5E20', fontWeight: 600 }}>💡 Precio final de venta</span>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--verde)' }}>
-                  ${Number(precioCalculadoCop()).toLocaleString('es-CO')} COP
+                  ${Number(precioCalculadoCop()).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} COP
                 </div>
                 {precioEstimadoUsd() && (
                   <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)' }}>≈ ${precioEstimadoUsd()} USD</div>

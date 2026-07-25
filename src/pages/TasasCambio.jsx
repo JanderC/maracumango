@@ -75,13 +75,13 @@ export default function TasasCambio() {
           <div key={item.moneda} className="card-mm">
             <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 8 }}>{item.label}</div>
             <div style={{ fontSize: '1.8rem', fontWeight: 800, color: item.color, marginBottom: 4 }}>
-              {item.tasa ? parseFloat(item.tasa.tasa_por_usd).toLocaleString() : '—'}
+              {item.tasa ? parseFloat(item.tasa.tasa_por_usd).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
             </div>
             <div style={{ fontSize: '0.75rem', color: 'var(--texto-suave)' }}>
               {item.tasa ? `Actualizada: ${new Date(item.tasa.actualizado_en).toLocaleDateString('es-VE')}` : 'Sin tasa registrada'}
             </div>
             <div style={{ marginTop: 10, background: item.bg, borderRadius: 10, padding: '6px 12px', fontSize: '0.78rem', color: item.color, fontWeight: 600 }}>
-              1 USD = {item.tasa ? parseFloat(item.tasa.tasa_por_usd).toLocaleString() : '?'} {item.moneda}
+              1 USD = {item.tasa ? parseFloat(item.tasa.tasa_por_usd).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '?'} {item.moneda}
             </div>
           </div>
         ))}
@@ -125,7 +125,7 @@ export default function TasasCambio() {
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--verde)' }}>
-                  {parseFloat(t.promedio).toLocaleString('es-VE', { minimumFractionDigits: 2 })}
+                  {parseFloat(t.promedio).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
                 <button
                   onClick={() => importarBCV(t.moneda)}
@@ -181,7 +181,7 @@ export default function TasasCambio() {
           {formManual.tasa_por_usd && (
             <div style={{ background: '#E8F5E9', borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
               <span style={{ fontSize: '0.82rem', color: '#1B5E20', fontWeight: 600 }}>
-                💡 1 USD = {parseFloat(formManual.tasa_por_usd).toLocaleString()} {formManual.moneda}
+                💡 1 USD = {parseFloat(formManual.tasa_por_usd).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {formManual.moneda}
               </span>
             </div>
           )}
@@ -212,7 +212,7 @@ export default function TasasCambio() {
                   </span>
                 </div>
                 <span style={{ fontWeight: 700, fontSize: '0.88rem' }}>
-                  {parseFloat(t.tasa_por_usd).toLocaleString()}
+                  {parseFloat(t.tasa_por_usd).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
             ))}
