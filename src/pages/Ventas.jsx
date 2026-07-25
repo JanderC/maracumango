@@ -239,7 +239,9 @@ const construirTicketESCPOS = (venta) => {
   raw([ESC, 0x21, 0x00]);
 
   if (venta.notas) {
+    raw([ESC, 0x21, 0x08]);  // negrita (más legible en papel térmico)
     texto('\nNOTAS:\n');
+    raw([ESC, 0x21, 0x00]);  // normal
     texto(`${venta.notas}\n`);
   }
 
