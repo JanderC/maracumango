@@ -220,7 +220,7 @@ const construirTicketESCPOS = (venta) => {
   raw([ESC, 0x40]);          // inicializar impresora
   raw([ESC, 0x61, 0x01]);    // centrar
   raw([ESC, 0x21, 0x30]);    // texto grande + negrita
-  texto('MARACU\nMARACUMANGO');
+  texto('MARACU\nMARACUMANGO\n');
   raw([ESC, 0x21, 0x00]);    // texto normal
   texto(`Pedido #${venta.id}\n`);
   texto(`${new Date(venta.creado_en || Date.now()).toLocaleString('es-CO')}\n`);
