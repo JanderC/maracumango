@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import API from '../api/axios';
 import { toast } from 'react-toastify';
 import {
   RiAddLine, RiEditLine, RiDeleteBinLine,
   RiSearchLine, RiCloseLine, RiArchiveLine,
-  RiAddCircleLine
+  RiAddCircleLine, RiArrowUpLine, RiArrowDownLine,
+  RiArrowLeftSLine, RiArrowRightSLine
 } from 'react-icons/ri';
 
 const Modal = ({ show, onClose, children, titulo }) => {
@@ -46,6 +47,43 @@ const camposVacios = {
   proveedor: '', fecha_compra: '', codigo: ''
 };
 
+const opcionesOrden = [
+  { v: 'fecha_creacion', label: 'Fecha de creación' },
+  { v: 'nombre', label: 'Nombre' },
+  { v: 'cantidad', label: 'Cantidad' },
+  { v: 'costo_total', label: 'Costo total' },
+  { v: 'costo_total_usd', label: 'Equivalente USD' }
+];
+
+const opcionesPorPagina = [10, 25, 50, 100];
+
+// Fecha de creación en ms. Ajusta los nombres si tu API usa otro campo.
+const fechaCreacionMs = (item) => {
+  const f = item.created_at || item.fecha_creacion || item.creado_en || item.createdAt;
+  const t = f ? new Date(f).getTime() : NaN;
+  return Number.isNaN(t) ? null : t;
+};
+
+const formatoFechaCreacion = (item) => {
+  const t = fechaCreacionMs(item);
+  return t === null
+    ? '—'
+    : new Date(t).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+// Devuelve p. ej. [1, '...', 4, 5, 6, '...', 12]
+const numerosPagina = (actual, total) => {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const paginas = new Set([1, total, actual - 1, actual, actual + 1]);
+  const ordenadas = [...paginas].filter(p => p >= 1 && p <= total).sort((a, b) => a - b);
+  const resultado = [];
+  ordenadas.forEach((p, i) => {
+    if (i > 0 && p - ordenadas[i - 1] > 1) resultado.push('...');
+    resultado.push(p);
+  });
+  return resultado;
+};
+
 export default function Inventario() {
   const [items, setItems] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -57,6 +95,14 @@ export default function Inventario() {
   const [form, setForm] = useState(camposVacios);
   const [ajuste, setAjuste] = useState({ cantidad: '', operacion: 'sumar' });
   const [guardando, setGuardando] = useState(false);
+
+  // Filtros, orden y paginación
+  const [filtroCategoria, setFiltroCategoria] = useState('');
+  const [filtroMoneda, setFiltroMoneda] = useState('');
+  const [ordenarPor, setOrdenarPor] = useState('fecha_creacion');
+  const [direccion, setDireccion] = useState('desc'); // 'asc' | 'desc'
+  const [pagina, setPagina] = useState(1);
+  const [porPagina, setPorPagina] = useState(10);
 
   const cargar = async () => {
     setCargando(true);
@@ -73,6 +119,11 @@ export default function Inventario() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { cargar(); }, []);
+
+  // Al cambiar filtros u orden, volver a la primera página
+  useEffect(() => {
+    setPagina(1);
+  }, [busqueda, filtroCategoria, filtroMoneda, ordenarPor, direccion, porPagina]);
 
   const abrirCrear = () => {
     setItemSeleccionado(null);
@@ -153,10 +204,77 @@ export default function Inventario() {
     }
   };
 
-  const filtrados = items.filter(i =>
-    i.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-    (i.proveedor || '').toLowerCase().includes(busqueda.toLowerCase())
-  );
+  const hayFiltros = busqueda !== '' || filtroCategoria !== '' || filtroMoneda !== '';
+
+  const limpiarFiltros = () => {
+    setBusqueda('');
+    setFiltroCategoria('');
+    setFiltroMoneda('');
+  };
+
+  // 1) Filtrar
+  const filtrados = useMemo(() => {
+    const q = busqueda.toLowerCase();
+    return items.filter(i => {
+      const coincideTexto =
+        i.nombre.toLowerCase().includes(q) ||
+        (i.proveedor || '').toLowerCase().includes(q);
+
+      const coincideCategoria =
+        filtroCategoria === '' ? true
+          : filtroCategoria === 'sin' ? !i.categoria_id
+            : String(i.categoria_id) === filtroCategoria;
+
+      const coincideMoneda =
+        filtroMoneda === '' ? true : (i.moneda_compra || 'USD') === filtroMoneda;
+
+      return coincideTexto && coincideCategoria && coincideMoneda;
+    });
+  }, [items, busqueda, filtroCategoria, filtroMoneda]);
+
+  // 2) Ordenar (ascendente / descendente)
+  const ordenados = useMemo(() => {
+    const dir = direccion === 'asc' ? 1 : -1;
+    const num = (v) => parseFloat(v) || 0;
+
+    return [...filtrados].sort((a, b) => {
+      let res = 0;
+      switch (ordenarPor) {
+        case 'nombre':
+          res = a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' });
+          break;
+        case 'cantidad':
+          res = num(a.cantidad) - num(b.cantidad);
+          break;
+        case 'costo_total':
+          res = num(a.costo_total) - num(b.costo_total);
+          break;
+        case 'costo_total_usd':
+          res = num(a.costo_total_usd) - num(b.costo_total_usd);
+          break;
+        case 'fecha_creacion':
+        default: {
+          const fa = fechaCreacionMs(a);
+          const fb = fechaCreacionMs(b);
+          // Si el API no trae fecha, se usa el id como respaldo (a mayor id, más reciente)
+          res = (fa !== null && fb !== null)
+            ? fa - fb
+            : (Number(a.id) || 0) - (Number(b.id) || 0);
+        }
+      }
+      return res * dir;
+    });
+  }, [filtrados, ordenarPor, direccion]);
+
+  // 3) Paginar
+  const totalPaginas = Math.max(1, Math.ceil(ordenados.length / porPagina));
+  const paginaActual = Math.min(pagina, totalPaginas);
+  const inicio = (paginaActual - 1) * porPagina;
+  const visibles = ordenados.slice(inicio, inicio + porPagina);
+
+  const etiquetaDireccion = ordenarPor === 'fecha_creacion'
+    ? (direccion === 'asc' ? 'Más antiguos primero' : 'Más recientes primero')
+    : (direccion === 'asc' ? 'Ascendente' : 'Descendente');
 
   const costoTotalUSD = filtrados.reduce((acc, i) => acc + parseFloat(i.costo_total_usd || 0), 0);
   const inversionTotal = filtrados.reduce((acc, i) => acc + parseFloat(i.costo_total || 0), 0);
@@ -190,16 +308,66 @@ export default function Inventario() {
         </button>
       </div>
 
-      {/* Búsqueda */}
-      <div style={{ position: 'relative', marginBottom: 20, maxWidth: 400 }}>
-        <RiSearchLine style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--texto-suave)' }} />
-        <input
-          className="input-mm"
-          placeholder="Buscar por nombre o proveedor..."
-          value={busqueda}
-          onChange={e => setBusqueda(e.target.value)}
-          style={{ paddingLeft: 40 }}
-        />
+      {/* Búsqueda, filtros y orden */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 20 }}>
+        <div style={{ position: 'relative', flex: '1 1 240px', maxWidth: 400 }}>
+          <RiSearchLine style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--texto-suave)' }} />
+          <input
+            className="input-mm"
+            placeholder="Buscar por nombre o proveedor..."
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            style={{ paddingLeft: 40 }}
+          />
+        </div>
+
+        <select className="input-mm" style={{ width: 'auto', minWidth: 160 }}
+          value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}
+          title="Filtrar por categoría">
+          <option value="">Todas las categorías</option>
+          <option value="sin">Sin categoría</option>
+          {categorias.map(c => <option key={c.id} value={String(c.id)}>{c.nombre}</option>)}
+        </select>
+
+        <select className="input-mm" style={{ width: 'auto', minWidth: 140 }}
+          value={filtroMoneda} onChange={e => setFiltroMoneda(e.target.value)}
+          title="Filtrar por moneda">
+          <option value="">Todas las monedas</option>
+          <option value="USD">💵 USD</option>
+          <option value="BS">🇻🇪 BS</option>
+          <option value="COP">🇨🇴 COP</option>
+        </select>
+
+        <select className="input-mm" style={{ width: 'auto', minWidth: 170 }}
+          value={ordenarPor} onChange={e => setOrdenarPor(e.target.value)}
+          title="Ordenar por">
+          {opcionesOrden.map(o => <option key={o.v} value={o.v}>Ordenar: {o.label}</option>)}
+        </select>
+
+        <button type="button"
+          onClick={() => setDireccion(d => d === 'asc' ? 'desc' : 'asc')}
+          title="Cambiar dirección del orden"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '10px 14px', borderRadius: 12, border: '2px solid var(--verde)',
+            background: '#E8F5E9', color: 'var(--verde)',
+            fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', whiteSpace: 'nowrap'
+          }}>
+          {direccion === 'asc' ? <RiArrowUpLine /> : <RiArrowDownLine />}
+          {etiquetaDireccion}
+        </button>
+
+        {hayFiltros && (
+          <button type="button" onClick={limpiarFiltros}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '10px 14px', borderRadius: 12, border: '1px solid #E0E0E0',
+              background: '#fff', color: 'var(--texto-suave)',
+              fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer'
+            }}>
+            <RiCloseLine /> Limpiar filtros
+          </button>
+        )}
       </div>
 
       {/* Tabla */}
@@ -213,7 +381,7 @@ export default function Inventario() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
               <thead>
                 <tr style={{ background: 'var(--crema)', borderBottom: '2px solid #F0F0F0' }}>
-                  {['Código', 'Producto', 'Categoría', 'Cantidad', 'Unidad', 'Costo Total', 'Moneda', 'Costo Unit.', 'Equiv. USD', 'Proveedor', 'Acciones'].map(h => (
+                  {['Código', 'Producto', 'Categoría', 'Cantidad', 'Unidad', 'Costo Total', 'Moneda', 'Costo Unit.', 'Equiv. USD', 'Proveedor', 'Creado', 'Acciones'].map(h => (
                     <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontWeight: 600, fontSize: '0.78rem', color: 'var(--texto-suave)', whiteSpace: 'nowrap' }}>
                       {h}
                     </th>
@@ -221,14 +389,14 @@ export default function Inventario() {
                 </tr>
               </thead>
               <tbody>
-                {filtrados.length === 0 ? (
+                {visibles.length === 0 ? (
                   <tr>
-                    <td colSpan={11} style={{ textAlign: 'center', padding: 48, color: 'var(--texto-suave)' }}>
+                    <td colSpan={12} style={{ textAlign: 'center', padding: 48, color: 'var(--texto-suave)' }}>
                       <RiArchiveLine style={{ fontSize: 36, display: 'block', margin: '0 auto 8px' }} />
-                      Sin items en inventario
+                      {items.length === 0 ? 'Sin items en inventario' : 'Ningún item coincide con los filtros'}
                     </td>
                   </tr>
-                ) : filtrados.map(item => (
+                ) : visibles.map(item => (
                   <tr key={item.id}
                     style={{ borderBottom: '1px solid #F9F9F9', transition: 'background 0.15s' }}
                     onMouseEnter={e => e.currentTarget.style.background = '#FAFAFA'}
@@ -327,6 +495,11 @@ export default function Inventario() {
                       {item.proveedor || '—'}
                     </td>
 
+                    {/* Fecha de creación */}
+                    <td style={{ padding: '14px 16px', color: 'var(--texto-suave)', whiteSpace: 'nowrap' }}>
+                      {formatoFechaCreacion(item)}
+                    </td>
+
                     {/* Acciones */}
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ display: 'flex', gap: 8 }}>
@@ -349,6 +522,68 @@ export default function Inventario() {
               </tbody>
             </table>
           </div>
+
+          {/* Paginación */}
+          {ordenados.length > 0 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              flexWrap: 'wrap', gap: 12, padding: '14px 16px', borderTop: '1px solid #F0F0F0'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: '0.8rem', color: 'var(--texto-suave)', flexWrap: 'wrap' }}>
+                <span>
+                  Mostrando <strong>{inicio + 1}–{Math.min(inicio + porPagina, ordenados.length)}</strong> de <strong>{ordenados.length}</strong>
+                </span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                  Por página
+                  <select className="input-mm" style={{ width: 'auto', padding: '4px 8px' }}
+                    value={porPagina} onChange={e => setPorPagina(Number(e.target.value))}>
+                    {opcionesPorPagina.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button type="button" disabled={paginaActual === 1}
+                  onClick={() => setPagina(paginaActual - 1)} title="Anterior"
+                  style={{
+                    display: 'flex', alignItems: 'center', padding: '6px 8px', borderRadius: 8,
+                    border: '1px solid #E0E0E0', background: '#fff',
+                    cursor: paginaActual === 1 ? 'not-allowed' : 'pointer',
+                    opacity: paginaActual === 1 ? 0.4 : 1
+                  }}>
+                  <RiArrowLeftSLine />
+                </button>
+
+                {numerosPagina(paginaActual, totalPaginas).map((p, idx) => (
+                  p === '...' ? (
+                    <span key={`e${idx}`} style={{ padding: '0 4px', color: 'var(--texto-suave)' }}>…</span>
+                  ) : (
+                    <button key={p} type="button" onClick={() => setPagina(p)}
+                      style={{
+                        minWidth: 34, padding: '6px 8px', borderRadius: 8, border: '1px solid',
+                        borderColor: p === paginaActual ? 'var(--verde)' : '#E0E0E0',
+                        background: p === paginaActual ? 'var(--verde)' : '#fff',
+                        color: p === paginaActual ? '#fff' : 'inherit',
+                        fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer'
+                      }}>
+                      {p}
+                    </button>
+                  )
+                ))}
+
+                <button type="button" disabled={paginaActual === totalPaginas}
+                  onClick={() => setPagina(paginaActual + 1)} title="Siguiente"
+                  style={{
+                    display: 'flex', alignItems: 'center', padding: '6px 8px', borderRadius: 8,
+                    border: '1px solid #E0E0E0', background: '#fff',
+                    cursor: paginaActual === totalPaginas ? 'not-allowed' : 'pointer',
+                    opacity: paginaActual === totalPaginas ? 0.4 : 1
+                  }}>
+                  <RiArrowRightSLine />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
