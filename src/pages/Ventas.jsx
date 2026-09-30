@@ -236,14 +236,19 @@ const construirTicketESCPOS = (venta) => {
   });
 
   linea();
+  const simboloPago = venta.moneda_pago === 'USD' ? '$' : venta.moneda_pago === 'BS' ? 'Bs.' : 'COP$';
+  const monto = (v) => Number(v || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   raw([ESC, 0x21, 0x10]);    // negrita
-  texto(`TOTAL: $${Number(venta.total_pagado).toLocaleString('es-CO')} ${venta.moneda_pago}\n`);
+  texto(`TOTAL: ${simboloPago} ${monto(venta.total_pagado)}\n`);
   raw([ESC, 0x21, 0x00]);
+  if (venta.moneda_pago === 'BS' && venta.tasa_cambio_usada) {
+    texto(`Tasa BS/USD: ${Number(venta.tasa_cambio_usada).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}\n`);
+  }
 
   if (venta.tipo_pago === 'efectivo' && venta.monto_recibido !== null && venta.monto_recibido !== undefined) {
-    texto(`Pago con: $${Number(venta.monto_recibido).toLocaleString('es-CO')}\n`);
+    texto(`Pago con: ${simboloPago} ${monto(venta.monto_recibido)}\n`);
     raw([ESC, 0x21, 0x10]);  // negrita
-    texto(`VUELTO: $${Number(venta.vuelto || 0).toLocaleString('es-CO')}\n`);
+    texto(`VUELTO: ${simboloPago} ${monto(venta.vuelto)}\n`);
     raw([ESC, 0x21, 0x00]);
   }
 
