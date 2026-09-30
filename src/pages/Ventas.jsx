@@ -229,10 +229,12 @@ const construirTicketESCPOS = (venta) => {
 
   (venta.items || []).forEach(item => {
     raw([ESC, 0x21, 0x18]);  // doble alto + negrita (más grande, sin perder ancho de línea)
-    texto(`${item.cantidad}x ${item.producto_nombre}\n`);
+    texto(`${item.producto_nombre} ${item.cantidad} x ${Number(item.precio_unitario_cop).toLocaleString('es-CO')}\n`);
     raw([ESC, 0x21, 0x00]);  // texto normal
     (item.toppings || []).forEach(t => texto(`   + ${t.topping_nombre}\n`));
+    raw([ESC, 0x21, 0x08]);  // negrita
     texto(`   $${Number(item.subtotal_cop).toLocaleString('es-CO')}\n`);
+    raw([ESC, 0x21, 0x00]);
   });
 
   linea();
