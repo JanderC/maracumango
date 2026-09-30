@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import API from '../api/axios';
 import { toast } from 'react-toastify';
+import { Link } from 'react-router-dom';
 import {
   RiAddLine, RiSubtractLine, RiDeleteBinLine,
   RiSearchLine, RiCloseLine, RiCheckLine,
@@ -524,6 +525,12 @@ export default function Ventas() {
   };
 
   useEffect(() => { cargarPOS(); }, []);
+
+  // Aviso si se está vendiendo con la caja cerrada (el efectivo no quedaría cuadrado)
+  const [cajaAbierta, setCajaAbierta] = useState(null);
+  useEffect(() => {
+    API.get('/caja/actual').then(({ data }) => setCajaAbierta(!!data.sesion)).catch(() => setCajaAbierta(null));
+  }, []);
   useEffect(() => { if (vista === 'historial') cargarHistorial(); }, [vista]);
 
   /* ── POS: agregar producto ── */
@@ -764,6 +771,16 @@ export default function Ventas() {
   /* ════ RENDER ════ */
   return (
     <div>
+      {cajaAbierta === false && (
+        <div style={{
+          background: '#FFF3E0', border: '1px solid #FFB300', borderRadius: 12, padding: '10px 16px', marginBottom: 16,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', fontSize: '0.85rem'
+        }}>
+          <span style={{ color: '#E65100', fontWeight: 600 }}>🔒 La caja está cerrada. Ábrela para que el efectivo de las ventas quede cuadrado.</span>
+          <Link to="/caja" className="btn-naranja" style={{ padding: '6px 16px', textDecoration: 'none', fontSize: '0.8rem' }}>Abrir caja</Link>
+        </div>
+      )}
+
       {/* Header + tabs */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>

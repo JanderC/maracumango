@@ -46,7 +46,7 @@ export default function Navbar({ setMobileOpen }) {
           color: 'var(--verde)',
           border: '1px solid rgba(27,94,32,0.15)'
         }}>
-          {usuario?.rol === 'admin' ? '👑 Admin' : '🛍️ Cliente'}
+          {usuario?.rol === 'admin' ? '👑 Admin' : usuario?.rol === 'vendedor' ? '🧾 Vendedor' : '🛍️ Cliente'}
         </div>
         <div style={{
           width: 36, height: 36,

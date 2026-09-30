@@ -4,7 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import {
   RiDashboardLine, RiArchiveLine, RiShoppingBagLine,
   RiStoreLine, RiMoneyDollarCircleLine, RiBankLine,
-  RiBarChartLine, RiTeamLine, RiLogoutBoxLine, RiCloseLine, RiLeafLine, RiCupLine, RiPriceTag3Line 
+  RiBarChartLine, RiTeamLine, RiLogoutBoxLine, RiCloseLine, RiLeafLine, RiCupLine, RiPriceTag3Line,
+  RiSafe2Line
 } from 'react-icons/ri';
 
 const menuAdmin = [
@@ -14,7 +15,8 @@ const menuAdmin = [
   { to: '/productos',         icon: <RiShoppingBagLine />,        label: 'Productos' },
   { to: '/categorias', icon: <RiPriceTag3Line />, label: 'Categorías' },
   { to: '/ventas',            icon: <RiMoneyDollarCircleLine />,  label: 'Ventas' },
-  { to: '/tasas-cambio',      icon: <RiLeafLine />,               label: 'Tasas' },
+  { to: '/caja',              icon: <RiSafe2Line />,              label: 'Caja' },
+  { to: '/tasas-cambio',     icon: <RiLeafLine />,               label: 'Tasas' },
   { to: '/cuentas-bancarias', icon: <RiBankLine />,               label: 'Cuentas' },
   { to: '/reportes',          icon: <RiBarChartLine />,           label: 'Reportes' },
   { to: '/usuarios',          icon: <RiTeamLine />,               label: 'Usuarios' },
@@ -25,11 +27,18 @@ const menuCliente = [
   { to: '/catalogo', icon: <RiStoreLine />, label: 'Catálogo' },
 ];
 
+const menuVendedor = [
+  { to: '/ventas', icon: <RiMoneyDollarCircleLine />, label: 'Ventas' },
+  { to: '/caja',   icon: <RiSafe2Line />,             label: 'Caja' },
+];
+
+const menuPorRol = { admin: menuAdmin, vendedor: menuVendedor };
+
 export default function Sidebar({ mobileOpen, setMobileOpen }) {
   const [expandido, setExpandido] = useState(false);
   const { usuario, logout } = useAuth();
   const navigate = useNavigate();
-  const menu = usuario?.rol === 'admin' ? menuAdmin : menuCliente;
+  const menu = menuPorRol[usuario?.rol] || menuCliente;
 
   const handleLogout = () => {
     logout();

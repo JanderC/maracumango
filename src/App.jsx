@@ -16,6 +16,7 @@ import Usuarios from './pages/Usuarios';
 import Toppings from './pages/Toppings';
 import Categorias from './pages/Categorias';
 import Menu from './pages/Menu';
+import Caja from './pages/Caja';
 
 
 // A dónde debe ir cada rol cuando entra a la raíz "/" o cuando le niegan una pantalla
@@ -53,6 +54,7 @@ const AppRoutes = () => {
         <Route path="inventario" element={<RutaProtegida roles={['admin']}><Inventario /></RutaProtegida>} />
         <Route path="productos" element={<RutaProtegida roles={['admin']}><Productos /></RutaProtegida>} />
         <Route path="ventas" element={<RutaProtegida roles={['admin', 'vendedor']}><Ventas /></RutaProtegida>} />
+        <Route path="caja" element={<RutaProtegida roles={['admin', 'vendedor']}><Caja /></RutaProtegida>} />
         <Route path="tasas-cambio" element={<RutaProtegida roles={['admin']}><TasasCambio /></RutaProtegida>} />
         <Route path="cuentas-bancarias" element={<RutaProtegida roles={['admin']}><CuentasBancarias /></RutaProtegida>} />
         <Route path="reportes" element={<RutaProtegida roles={['admin']}><Reportes /></RutaProtegida>} />
