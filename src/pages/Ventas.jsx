@@ -10,6 +10,16 @@ import {
   RiShoppingCartLine, RiEyeLine, RiFileList2Line
 } from 'react-icons/ri';
 
+/* ─── Pago dividido: helpers de presentación ─── */
+const simboloMoneda = (m) => (m === 'USD' ? '$' : m === 'BS' ? 'Bs.' : 'COP$');
+const fmtMonto = (v) => Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 2 });
+// Las dos partes de una venta con pago dividido, o null si es un pago normal
+const partesPago = (v) => (v?.moneda_pago_2 ? [
+  { moneda: v.moneda_pago, tipo: v.tipo_pago, monto: v.total_pagado, banco: v.nombre_banco },
+  { moneda: v.moneda_pago_2, tipo: v.tipo_pago_2, monto: v.total_pagado_2, banco: v.nombre_banco_2 }
+] : null);
+const unir = (...valores) => [...new Set(valores.filter(Boolean))].join(' + ');
+
 /* ─── Modal genérico ─── */
 const Modal = ({ show, onClose, children, titulo, maxWidth = 520 }) => {
   if (!show) return null;
@@ -197,9 +207,17 @@ const construirTicketESCPOS = (venta) => {
   const simboloPago = venta.moneda_pago === 'USD' ? '$' : venta.moneda_pago === 'BS' ? 'Bs.' : 'COP$';
   const monto = (v) => Number(v || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   raw([ESC, 0x21, 0x10]);    // negrita
-  texto(`TOTAL: ${simboloPago} ${monto(venta.total_pagado)}\n`);
+  const partes = partesPago(venta);
+  if (partes) {
+    texto(`TOTAL: COP$ ${monto(venta.total_cop)}\n`);
+    texto('PAGO DIVIDIDO\n');
+    raw([ESC, 0x21, 0x00]);
+    partes.forEach((p, i) => texto(`  Pago ${i + 1}: ${simboloMoneda(p.moneda)} ${monto(p.monto)} (${p.tipo === 'efectivo' ? 'Efectivo' : 'Transf.'})\n`));
+  } else {
+    texto(`TOTAL: ${simboloPago} ${monto(venta.total_pagado)}\n`);
+  }
   raw([ESC, 0x21, 0x00]);
-  if (venta.moneda_pago === 'BS' && venta.tasa_cambio_usada) {
+  if ((venta.moneda_pago === 'BS' || venta.moneda_pago_2 === 'BS') && venta.tasa_cambio_usada) {
     texto(`Tasa BS/USD: ${Number(venta.tasa_cambio_usada).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}\n`);
   }
 
@@ -278,10 +296,17 @@ const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
             );
           })}
           <div style={{ borderTop: '1px dashed #E0E0E0', marginTop: 10, paddingTop: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
-              <span>Total {venta.moneda_pago}</span>
-              <span style={{ color: 'var(--verde)' }}>{simbolo} {Number(venta.total_pagado).toLocaleString()}</span>
-            </div>
+            {partesPago(venta) ? partesPago(venta).map((p, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginBottom: 2 }}>
+                <span>Pago {i + 1} · {p.moneda} <span style={{ fontWeight: 500, color: 'var(--texto-suave)', textTransform: 'capitalize' }}>({p.tipo})</span></span>
+                <span style={{ color: 'var(--verde)' }}>{simboloMoneda(p.moneda)} {fmtMonto(p.monto)}</span>
+              </div>
+            )) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+                <span>Total {venta.moneda_pago}</span>
+                <span style={{ color: 'var(--verde)' }}>{simbolo} {Number(venta.total_pagado).toLocaleString()}</span>
+              </div>
+            )}
             {venta.moneda_pago !== 'USD' && (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, marginTop: 4, fontSize: '0.78rem', color: 'var(--texto-suave)' }}>
                 <span>Total USD (ref.)</span>
@@ -294,16 +319,16 @@ const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
         <div style={{ display: 'flex', gap: 10, marginBottom: 24, fontSize: '0.82rem' }}>
           <div style={{ flex: 1, padding: 10, background: '#E8F5E9', borderRadius: 10 }}>
             <div style={{ color: 'var(--texto-suave)' }}>Pago</div>
-            <div style={{ fontWeight: 700, color: 'var(--verde)', textTransform: 'capitalize' }}>{venta.tipo_pago}</div>
+            <div style={{ fontWeight: 700, color: 'var(--verde)', textTransform: 'capitalize' }}>{unir(venta.tipo_pago, venta.tipo_pago_2)}</div>
           </div>
           <div style={{ flex: 1, padding: 10, background: '#FFF3E0', borderRadius: 10 }}>
             <div style={{ color: 'var(--texto-suave)' }}>Moneda</div>
-            <div style={{ fontWeight: 700, color: 'var(--naranja)' }}>{venta.moneda_pago}</div>
+            <div style={{ fontWeight: 700, color: 'var(--naranja)' }}>{unir(venta.moneda_pago, venta.moneda_pago_2)}</div>
           </div>
-          {venta.nombre_banco && (
+          {(venta.nombre_banco || venta.nombre_banco_2) && (
             <div style={{ flex: 1, padding: 10, background: '#E3F2FD', borderRadius: 10 }}>
               <div style={{ color: 'var(--texto-suave)' }}>Banco</div>
-              <div style={{ fontWeight: 700, color: '#1565C0', fontSize: '0.75rem' }}>{venta.nombre_banco}</div>
+              <div style={{ fontWeight: 700, color: '#1565C0', fontSize: '0.75rem' }}>{unir(venta.nombre_banco, venta.nombre_banco_2)}</div>
             </div>
           )}
         </div>
@@ -379,6 +404,14 @@ export default function Ventas() {
   const [tipoPago, setTipoPago] = useState('efectivo');
   const [montoRecibido, setMontoRecibido] = useState('');
   const [cuentaId, setCuentaId] = useState('');
+  /* Pago dividido: la parte 1 usa moneda / tipoPago / cuentaId de arriba; la parte 2 usa estos */
+  const [dividido, setDividido] = useState(false);
+  const [moneda2, setMoneda2] = useState('BS');
+  const [tipoPago2, setTipoPago2] = useState('transferencia');
+  const [cuentas2, setCuentas2] = useState([]);
+  const [cuentaId2, setCuentaId2] = useState('');
+  const [ancla, setAncla] = useState(1);          // cuál de los dos montos escribió el cajero (1 o 2)
+  const [montoAncla, setMontoAncla] = useState('');
   const [notas, setNotas] = useState('');
   const [procesando, setProcesando] = useState(false);
   const [modalTicket, setModalTicket] = useState(false);
@@ -442,6 +475,15 @@ export default function Ventas() {
         .catch(() => setCuentas([]));
     }
   }, [tipoPago, moneda]);
+
+  /* ── Cuentas para la parte 2 del pago dividido ── */
+  useEffect(() => {
+    if (dividido && tipoPago2 === 'transferencia') {
+      API.get(`/cuentas-bancarias/moneda/${moneda2}`)
+        .then(r => { setCuentas2(r.data.cuentas); setCuentaId2(''); })
+        .catch(() => setCuentas2([]));
+    }
+  }, [dividido, tipoPago2, moneda2]);
 
   /* ── Cargar historial ── */
   const cargarHistorial = async () => {
@@ -589,13 +631,39 @@ export default function Ventas() {
     return parseFloat((recibido - parseFloat(totalConvertido())).toFixed(2));
   };
 
+  /* ── Pago dividido: el cajero escribe un monto y el otro se calcula con las tasas ──
+     Todo se cruza por COP (moneda nativa): COP ↔ USD con la tasa COP, BS ↔ USD con la tasa BS. */
+  const usaBs = moneda === 'BS' || (dividido && moneda2 === 'BS');
+  const tCop = parseFloat(tasaCop?.tasa_por_usd) || 0;
+  const tBs = parseFloat(tasa) || 0;
+  const aCop = (monto, m) => (m === 'COP' ? monto : m === 'USD' ? monto * tCop : tBs ? (monto / tBs) * tCop : NaN);
+  const deCop = (cop, m) => (m === 'COP' ? cop : m === 'USD' ? cop / tCop : (cop / tCop) * tBs);
+  const monedaAncla = ancla === 1 ? moneda : moneda2;
+  const monedaOtra = ancla === 1 ? moneda2 : moneda;
+  // Monto de la parte que NO escribió el cajero (null si todavía no se puede calcular)
+  const montoOtra = (() => {
+    const escrito = parseFloat(montoAncla);
+    if (!dividido || isNaN(escrito) || escrito <= 0 || !tCop) return null;
+    const resto = deCop(totalCOP - aCop(escrito, monedaAncla), monedaOtra);
+    return isNaN(resto) ? null : parseFloat(resto.toFixed(2));
+  })();
+  const montoParte = (n) => (ancla === n ? montoAncla : montoOtra === null ? '' : String(montoOtra));
+  const escribirParte = (n, valor) => { setAncla(n); setMontoAncla(valor); };
+  const mismoPago = dividido && moneda === moneda2 && tipoPago === tipoPago2;
+
   /* ── Confirmar venta ── */
   const confirmarVenta = async () => {
     if (carrito.length === 0) { toast.error('El carrito está vacío'); return; }
     if (!tasaCop) { toast.error('No hay tasa COP cargada. Regístrala en Tasas de cambio'); return; }
-    if (moneda === 'BS' && !tasa) { toast.error('Ingresa la tasa de cambio (BS/USD)'); return; }
+    if (usaBs && !tasa) { toast.error('Ingresa la tasa de cambio (BS/USD)'); return; }
     if (tipoPago === 'transferencia' && !cuentaId) { toast.error('Selecciona una cuenta bancaria'); return; }
-    if (tipoPago === 'efectivo') {
+    if (dividido) {
+      if (mismoPago) { toast.error('Los dos pagos deben ser distintos en moneda o en forma de pago'); return; }
+      if (tipoPago2 === 'transferencia' && !cuentaId2) { toast.error('Selecciona la cuenta bancaria del pago 2'); return; }
+      if (!(parseFloat(montoAncla) > 0)) { toast.error('Escribe el monto de uno de los dos pagos'); return; }
+      if (!(montoOtra > 0)) { toast.error('Ese monto cubre todo el pedido. Baja el monto o quita el pago dividido'); return; }
+    }
+    if (!dividido && tipoPago === 'efectivo') {
       if (montoRecibido === '' || isNaN(parseFloat(montoRecibido))) {
         toast.error('Ingresa el monto recibido en efectivo'); return;
       }
@@ -610,8 +678,15 @@ export default function Ventas() {
         moneda_pago: moneda,
         tipo_pago: tipoPago,
         cuenta_bancaria_id: cuentaId || null,
-        tasa_cambio_usada: moneda === 'BS' ? tasa : null,
-        monto_recibido: tipoPago === 'efectivo' ? montoRecibido : null,
+        tasa_cambio_usada: usaBs ? tasa : null,
+        monto_recibido: !dividido && tipoPago === 'efectivo' ? montoRecibido : null,
+        pago_dividido: dividido ? {
+          ancla,
+          monto: montoAncla,
+          moneda_2: moneda2,
+          tipo_pago_2: tipoPago2,
+          cuenta_bancaria_id_2: tipoPago2 === 'transferencia' ? cuentaId2 : null
+        } : null,
         notas,
         items: carrito.map(i => ({
           producto_id: i.id,
@@ -625,6 +700,9 @@ export default function Ventas() {
       setTipoPago('efectivo');
       setCuentaId('');
       setMontoRecibido('');
+      setDividido(false);
+      setMontoAncla('');
+      setCuentaId2('');
       setModalTicket(true);
       if (imprimirActivo) imprimirOrdenPreparacion(data.venta);
     } catch (err) {
@@ -954,7 +1032,7 @@ export default function Ventas() {
 
                 {/* Moneda */}
                 <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 8 }}>MONEDA DE PAGO</div>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 8 }}>{dividido ? 'PAGO 1 — MONEDA' : 'MONEDA DE PAGO'}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                     {['USD', 'BS', 'COP'].map(m => (
                       <button key={m} onClick={() => setMoneda(m)} style={{
@@ -971,7 +1049,7 @@ export default function Ventas() {
                 </div>
 
                 {/* Tasa */}
-                {moneda === 'BS' && (
+                {usaBs && (
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 6 }}>TASA (BS/USD)</div>
                     <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
@@ -1004,7 +1082,7 @@ export default function Ventas() {
 
                 {/* Tipo pago */}
                 <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 8 }}>TIPO DE PAGO</div>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 8 }}>{dividido ? 'PAGO 1 — FORMA DE PAGO' : 'TIPO DE PAGO'}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                     {[{ v: 'efectivo', label: '💵 Efectivo' }, { v: 'transferencia', label: '🏦 Transfer.' }].map(t => (
                       <button key={t.v} onClick={() => { setTipoPago(t.v); setMontoRecibido(''); }} style={{
@@ -1018,8 +1096,8 @@ export default function Ventas() {
                   </div>
                 </div>
 
-                {/* Cobro en efectivo: monto recibido + vuelto */}
-                {tipoPago === 'efectivo' && (
+                {/* Cobro en efectivo: monto recibido + vuelto (no aplica en pago dividido) */}
+                {!dividido && tipoPago === 'efectivo' && (
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 8 }}>
                       ¿CON CUÁNTO PAGA? ({simbolo})
@@ -1085,6 +1163,109 @@ export default function Ventas() {
                   </div>
                 )}
 
+                {/* Pago dividido: parte en una moneda y el resto en otra */}
+                <div style={{ marginBottom: 14, border: `2px solid ${dividido ? 'var(--naranja)' : '#E0E0E0'}`, borderRadius: 12, overflow: 'hidden' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', cursor: 'pointer', background: dividido ? '#FFF3E0' : '#fff', margin: 0 }}>
+                    <input type="checkbox" checked={dividido}
+                      onChange={e => {
+                        setDividido(e.target.checked);
+                        setAncla(1); setMontoAncla(''); setMontoRecibido('');
+                        if (e.target.checked && moneda2 === moneda && tipoPago2 === tipoPago) setMoneda2(moneda === 'COP' ? 'BS' : 'COP');
+                      }}
+                      style={{ width: 18, height: 18, accentColor: 'var(--naranja)' }} />
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.82rem' }}>Pago dividido</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--texto-suave)' }}>Una parte en una moneda y el resto en otra</div>
+                    </div>
+                  </label>
+
+                  {dividido && (
+                    <div style={{ padding: 12, borderTop: '1px solid #FFE0B2' }}>
+                      <div style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 6 }}>PAGO 2 — MONEDA</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 10 }}>
+                        {['USD', 'BS', 'COP'].map(m => (
+                          <button key={m} type="button" onClick={() => setMoneda2(m)} style={{
+                            padding: '7px 0', borderRadius: 10, border: '2px solid',
+                            borderColor: moneda2 === m ? 'var(--naranja)' : '#E0E0E0',
+                            background: moneda2 === m ? '#FFF3E0' : '#fff',
+                            color: moneda2 === m ? 'var(--naranja)' : 'var(--texto-suave)',
+                            fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer'
+                          }}>{m}</button>
+                        ))}
+                      </div>
+
+                      <div style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 6 }}>PAGO 2 — FORMA DE PAGO</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
+                        {[{ v: 'efectivo', label: '💵 Efectivo' }, { v: 'transferencia', label: '🏦 Transfer.' }].map(t => (
+                          <button key={t.v} type="button" onClick={() => setTipoPago2(t.v)} style={{
+                            padding: '8px 0', borderRadius: 10, border: '2px solid',
+                            borderColor: tipoPago2 === t.v ? 'var(--naranja)' : '#E0E0E0',
+                            background: tipoPago2 === t.v ? '#FFF3E0' : '#fff',
+                            color: tipoPago2 === t.v ? 'var(--naranja)' : 'var(--texto-suave)',
+                            fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer'
+                          }}>{t.label}</button>
+                        ))}
+                      </div>
+
+                      {tipoPago2 === 'transferencia' && (
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 6 }}>PAGO 2 — CUENTA DESTINO ({moneda2})</div>
+                          {cuentas2.length === 0 ? (
+                            <div style={{ padding: '8px 12px', background: '#FFF3E0', borderRadius: 10, fontSize: '0.76rem', color: '#E65100' }}>
+                              No hay cuentas activas para {moneda2}
+                            </div>
+                          ) : cuentas2.map(c => (
+                            <button key={c.id} type="button" onClick={() => setCuentaId2(c.id)} style={{
+                              width: '100%', padding: '8px 12px', borderRadius: 10, border: '2px solid', marginBottom: 6,
+                              borderColor: cuentaId2 === c.id ? 'var(--naranja)' : '#E0E0E0',
+                              background: cuentaId2 === c.id ? '#FFF3E0' : '#fff',
+                              textAlign: 'left', cursor: 'pointer', fontFamily: 'Poppins'
+                            }}>
+                              <div style={{ fontWeight: 700, fontSize: '0.8rem' }}>{c.nombre_banco}</div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--texto-suave)' }}>
+                                {c.titular_cuenta}{c.numero_cuenta ? ` · ${c.numero_cuenta}` : ''}{c.telefono ? ` · ${c.telefono}` : ''}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {mismoPago && (
+                        <div style={{ padding: '8px 12px', background: '#FFEBEE', borderRadius: 10, fontSize: '0.74rem', color: '#C62828', fontWeight: 600, marginBottom: 10 }}>
+                          Los dos pagos son iguales. Cambia la moneda o la forma de pago de uno.
+                        </div>
+                      )}
+
+                      <div style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 6 }}>¿CUÁNTO EN CADA PAGO?</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        {[{ n: 1, m: moneda, t: tipoPago }, { n: 2, m: moneda2, t: tipoPago2 }].map(p => (
+                          <div key={p.n}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 700, marginBottom: 4, color: p.n === 1 ? 'var(--verde)' : 'var(--naranja)' }}>
+                              Pago {p.n} · {simboloMoneda(p.m)} <span style={{ fontWeight: 500, color: 'var(--texto-suave)' }}>{p.t === 'efectivo' ? 'efectivo' : 'transf.'}</span>
+                            </div>
+                            <input className="input-mm" type="number" step="0.01" min="0" inputMode="decimal" placeholder="0"
+                              aria-label={`Monto pago ${p.n}`}
+                              value={montoParte(p.n)}
+                              onChange={e => escribirParte(p.n, e.target.value)}
+                              style={{
+                                fontSize: '0.92rem', fontWeight: 700, padding: '10px 12px',
+                                background: ancla === p.n || montoAncla === '' ? '#fff' : '#F1F8E9'
+                              }} />
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--texto-suave)', marginTop: 6 }}>
+                        Escribe uno de los dos montos y el otro se calcula solo.
+                      </div>
+                      {montoOtra !== null && montoOtra <= 0 && (
+                        <div style={{ padding: '8px 12px', background: '#FFEBEE', borderRadius: 10, fontSize: '0.74rem', color: '#C62828', fontWeight: 600, marginTop: 8 }}>
+                          Ese monto cubre todo el pedido. Baja el monto o quita el pago dividido.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Notas */}
                 <div style={{ marginBottom: 16 }}>
                   <textarea className="input-mm" rows={2} placeholder="Notas del pedido..." value={notas}
@@ -1111,6 +1292,12 @@ export default function Ventas() {
                       </div>
                     </div>
                   </div>
+                  {dividido && montoOtra > 0 && (
+                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.25)', marginTop: 10, paddingTop: 8, color: '#fff', fontSize: '0.8rem', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                      <span>Pago 1: <strong>{simboloMoneda(moneda)} {fmtMonto(montoParte(1))}</strong></span>
+                      <span>Pago 2: <strong>{simboloMoneda(moneda2)} {fmtMonto(montoParte(2))}</strong></span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Switch imprimir orden de preparación */}
@@ -1247,23 +1434,31 @@ export default function Ventas() {
                         <td style={{ padding: '12px 16px', fontWeight: 600 }}>{v.cajero}</td>
                         <td style={{ padding: '12px 16px', fontWeight: 700, color: 'var(--verde)' }}>${Number(v.total_cop).toLocaleString('es-CO')}</td>
                         <td style={{ padding: '12px 16px', fontWeight: 600 }}>
-                          {v.moneda_pago === 'USD' ? '$' : v.moneda_pago === 'BS' ? 'Bs.' : 'COP$'} {parseFloat(v.total_pagado).toLocaleString()}
-                        </td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <span style={{
-                            borderRadius: 20, padding: '3px 10px', fontSize: '0.75rem', fontWeight: 700,
-                            background: v.moneda_pago === 'USD' ? '#E8F5E9' : v.moneda_pago === 'BS' ? '#E3F2FD' : '#FFF3E0',
-                            color: v.moneda_pago === 'USD' ? '#1B5E20' : v.moneda_pago === 'BS' ? '#1565C0' : '#E65100'
-                          }}>{v.moneda_pago}</span>
+                          {partesPago(v)
+                            ? partesPago(v).map((p, i) => <div key={i}>{simboloMoneda(p.moneda)} {fmtMonto(p.monto)}</div>)
+                            : <>{simboloMoneda(v.moneda_pago)} {parseFloat(v.total_pagado).toLocaleString()}</>}
                         </td>
                         <td style={{ padding: '12px 16px' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
-                            <span style={{
-                              borderRadius: 20, padding: '3px 10px', fontSize: '0.75rem', fontWeight: 700,
-                              background: v.tipo_pago === 'efectivo' ? '#F3E5F5' : '#E8F5E9',
-                              color: v.tipo_pago === 'efectivo' ? '#6A1B9A' : '#1B5E20',
-                              textTransform: 'capitalize'
-                            }}>{v.tipo_pago}</span>
+                            {[v.moneda_pago, v.moneda_pago_2].filter(Boolean).map((m, i) => (
+                              <span key={i} style={{
+                                borderRadius: 20, padding: '3px 10px', fontSize: '0.75rem', fontWeight: 700,
+                                background: m === 'USD' ? '#E8F5E9' : m === 'BS' ? '#E3F2FD' : '#FFF3E0',
+                                color: m === 'USD' ? '#1B5E20' : m === 'BS' ? '#1565C0' : '#E65100'
+                              }}>{m}</span>
+                            ))}
+                          </div>
+                        </td>
+                        <td style={{ padding: '12px 16px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                            {[v.tipo_pago, v.tipo_pago_2].filter(Boolean).map((t, i) => (
+                              <span key={i} style={{
+                                borderRadius: 20, padding: '3px 10px', fontSize: '0.75rem', fontWeight: 700,
+                                background: t === 'efectivo' ? '#F3E5F5' : '#E8F5E9',
+                                color: t === 'efectivo' ? '#6A1B9A' : '#1B5E20',
+                                textTransform: 'capitalize'
+                              }}>{t}</span>
+                            ))}
                             {v.anulada && (
                               <span style={{
                                 borderRadius: 20, padding: '3px 10px', fontSize: '0.7rem', fontWeight: 700,
@@ -1273,7 +1468,7 @@ export default function Ventas() {
                           </div>
                         </td>
                         <td style={{ padding: '12px 16px', color: 'var(--texto-suave)', fontSize: '0.8rem' }}>
-                          {v.nombre_banco || '—'}
+                          {unir(v.nombre_banco, v.nombre_banco_2) || '—'}
                         </td>
                         <td style={{ padding: '12px 16px' }}>
                           <div style={{ display: 'flex', gap: 6 }}>
@@ -1325,9 +1520,9 @@ export default function Ventas() {
               {[
                 { label: 'Cajero', valor: ventaDetalle.cajero },
                 { label: 'Fecha', valor: new Date(ventaDetalle.creado_en).toLocaleString('es-VE') },
-                { label: 'Tipo pago', valor: ventaDetalle.tipo_pago },
-                { label: 'Moneda', valor: ventaDetalle.moneda_pago },
-                { label: 'Banco', valor: ventaDetalle.nombre_banco || '—' },
+                { label: 'Tipo pago', valor: unir(ventaDetalle.tipo_pago, ventaDetalle.tipo_pago_2) },
+                { label: 'Moneda', valor: unir(ventaDetalle.moneda_pago, ventaDetalle.moneda_pago_2) },
+                { label: 'Banco', valor: unir(ventaDetalle.nombre_banco, ventaDetalle.nombre_banco_2) || '—' },
                 { label: 'Tasa usada', valor: ventaDetalle.tasa_cambio_usada ? parseFloat(ventaDetalle.tasa_cambio_usada).toLocaleString() : '—' },
               ].map(d => (
                 <div key={d.label} style={{ background: 'var(--crema)', borderRadius: 10, padding: '10px 14px' }}>
@@ -1398,10 +1593,12 @@ export default function Ventas() {
                 <span>Total COP</span>
                 <span>${Number(ventaDetalle.total_cop).toLocaleString('es-CO')}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--naranja-claro)', fontWeight: 700 }}>
-                <span>Total {ventaDetalle.moneda_pago}</span>
-                <span>{ventaDetalle.moneda_pago === 'USD' ? '$' : ventaDetalle.moneda_pago === 'BS' ? 'Bs.' : 'COP$'} {parseFloat(ventaDetalle.total_pagado).toLocaleString()}</span>
-              </div>
+              {(partesPago(ventaDetalle) || [{ moneda: ventaDetalle.moneda_pago, monto: ventaDetalle.total_pagado }]).map((p, i, todas) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--naranja-claro)', fontWeight: 700 }}>
+                  <span>{todas.length > 1 ? `Pago ${i + 1} · ${p.moneda} (${p.tipo})` : `Total ${p.moneda}`}</span>
+                  <span>{simboloMoneda(p.moneda)} {todas.length > 1 ? fmtMonto(p.monto) : parseFloat(p.monto).toLocaleString()}</span>
+                </div>
+              ))}
             </div>
 
             {ventaDetalle.notas && (

@@ -752,16 +752,20 @@ const TabDiario = ({ onVerSesion }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {datos.lista_ventas.map(v => (
+                    {datos.lista_ventas.map(v => {
+                      // Un pago normal tiene una parte; un pago dividido, dos
+                      const pagos = [{ m: v.moneda_pago, t: v.tipo_pago, x: v.total_pagado }, ...(v.moneda_pago_2 ? [{ m: v.moneda_pago_2, t: v.tipo_pago_2, x: v.total_pagado_2 }] : [])];
+                      return (
                       <tr key={v.id} style={{ borderTop: '1px solid #F5F5F5', opacity: v.anulada ? 0.5 : 1 }}>
                         <td style={{ padding: '8px 10px' }}>{fmtHora(v.creado_en)}</td>
                         <td style={{ padding: '8px 10px', fontWeight: 600 }}>#{v.id} {v.anulada && <span style={{ fontSize: '0.65rem', background: '#FFEBEE', color: '#C62828', borderRadius: 6, padding: '1px 6px', marginLeft: 4 }}>ANULADA</span>}</td>
-                        <td style={{ padding: '8px 10px' }}><span className={`badge badge-${v.moneda_pago.toLowerCase()}`} style={{ borderRadius: 6 }}>{v.moneda_pago}</span></td>
-                        <td style={{ padding: '8px 10px', textTransform: 'capitalize' }}>{v.tipo_pago}</td>
-                        <td style={{ padding: '8px 10px', fontWeight: 700, textDecoration: v.anulada ? 'line-through' : 'none' }}>{fmt(v.moneda_pago, v.total_pagado)}</td>
+                        <td style={{ padding: '8px 10px' }}>{pagos.map((p, i) => <div key={i}><span className={`badge badge-${p.m.toLowerCase()}`} style={{ borderRadius: 6 }}>{p.m}</span></div>)}</td>
+                        <td style={{ padding: '8px 10px', textTransform: 'capitalize' }}>{pagos.map((p, i) => <div key={i}>{p.t}</div>)}</td>
+                        <td style={{ padding: '8px 10px', fontWeight: 700, textDecoration: v.anulada ? 'line-through' : 'none' }}>{pagos.map((p, i) => <div key={i}>{fmt(p.m, p.x)}</div>)}</td>
                         <td style={{ padding: '8px 10px', color: 'var(--texto-suave)' }}>{v.cajero || '—'}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

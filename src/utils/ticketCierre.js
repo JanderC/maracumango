@@ -90,6 +90,10 @@ export const lineasTicketCierre = (sesion) => {
       const pago = x.tipo_pago === 'efectivo' ? 'Efec' : 'Trans';
       const izq = `#${String(x.id).padEnd(4)}${hora(x.creado_en)} ${x.moneda_pago.padEnd(3)} ${pago}${x.anulada ? ' ANUL' : ''}`;
       add(filaTicket(izq, x.anulada ? `(${montoTicket(x.moneda_pago, x.total_pagado)})` : montoTicket(x.moneda_pago, x.total_pagado)));
+      if (x.moneda_pago_2) { // pago dividido: la segunda parte va en su propia línea
+        const izq2 = `   + dividido ${x.moneda_pago_2.padEnd(3)} ${x.tipo_pago_2 === 'efectivo' ? 'Efec' : 'Trans'}`;
+        add(filaTicket(izq2, x.anulada ? `(${montoTicket(x.moneda_pago_2, x.total_pagado_2)})` : montoTicket(x.moneda_pago_2, x.total_pagado_2)));
+      }
     });
     if (sesion.lista_ventas.some(x => x.anulada)) add('(ANUL = anulada, no suma en caja)');
   }
