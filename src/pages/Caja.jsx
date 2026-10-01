@@ -332,10 +332,6 @@ const TabCaja = ({ esAdmin }) => {
     try {
       const { data } = await API.get('/caja/actual');
       setDatos(data);
-      if (!data.sesion && data.ultimo_cierre) {
-        const c = data.ultimo_cierre.contado;
-        setApertura(a => ({ ...a, COP: String(c.COP ?? ''), USD: String(c.USD ?? ''), BS: String(c.BS ?? '') }));
-      }
     } catch (err) { errorApi(err, 'Error cargando la caja'); }
     finally { setCargando(false); }
   }, []);
@@ -422,27 +418,18 @@ const TabCaja = ({ esAdmin }) => {
           <div style={{ padding: 28 }}>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>Fondo de apertura</div>
             <p style={{ fontSize: '0.8rem', color: 'var(--texto-suave)', marginBottom: 18 }}>
-              Cuenta el efectivo que hay en el cajón en cada moneda.
-              {ultimo && ' Te mostramos lo que debería haber según el último cierre.'}
+              Escribe el fondo con el que arranca la caja hoy (el sencillo para dar vueltos).
+              Deja en blanco las monedas que no uses. Lo vendido ayer no se arrastra.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, marginBottom: 16 }}>
-              {MONEDAS.map(m => {
-                const esperado = ultimo?.contado?.[m];
-                const difiere = ultimo && apertura[m] !== '' && Math.abs(Number(apertura[m]) - Number(esperado || 0)) >= 0.005;
-                return (
-                  <div key={m} style={{ background: INFO[m].fondo, border: `1px solid ${INFO[m].borde}`, borderRadius: 14, padding: 14 }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.82rem', color: INFO[m].color, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 7 }}>
-                      <Chip moneda={m} /> {INFO[m].nombre}
-                    </div>
-                    <InputMonto moneda={m} value={apertura[m]} onChange={v => setApertura(a => ({ ...a, [m]: v }))} />
-                    {ultimo && (
-                      <div style={{ fontSize: '0.72rem', marginTop: 8, color: difiere ? '#C62828' : 'var(--texto-suave)', fontWeight: difiere ? 700 : 500 }}>
-                        {difiere ? '⚠️ ' : '✓ '}Esperado: {fmt(m, esperado)}
-                      </div>
-                    )}
+              {MONEDAS.map(m => (
+                <div key={m} style={{ background: INFO[m].fondo, border: `1px solid ${INFO[m].borde}`, borderRadius: 14, padding: 14 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.82rem', color: INFO[m].color, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <Chip moneda={m} /> {INFO[m].nombre}
                   </div>
-                );
-              })}
+                  <InputMonto moneda={m} value={apertura[m]} onChange={v => setApertura(a => ({ ...a, [m]: v }))} />
+                </div>
+              ))}
             </div>
             <Etiqueta>Notas (opcional)</Etiqueta>
             <input className="input-mm" placeholder="Ej: faltaba sencillo, se agregó cambio..." value={apertura.notas}
@@ -554,8 +541,11 @@ const TabCaja = ({ esAdmin }) => {
       {/* Modal cierre */}
       <Modal show={modalCierre} onClose={() => setModalCierre(false)} titulo={`Cerrar caja #${sesion.id}`} icono={<RiLockLine />} color="var(--naranja)" maxWidth={620}>
         <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginTop: -6 }}>
-          Cuenta el efectivo del cajón en cada moneda. El sistema compara con lo esperado.
+          Cuenta solo los <strong>billetes y monedas</strong> que hay en el cajón, en cada moneda. El sistema compara con lo esperado.
         </p>
+        <div style={{ background: '#E3F2FD', borderRadius: 10, padding: '9px 12px', fontSize: '0.78rem', color: '#1565C0', marginBottom: 12 }}>
+          🏦 Las <strong>transferencias no se cuentan</strong>: ese dinero está en el banco, no en el cajón. Si en una moneda no hay efectivo, escribe <strong>0</strong>.
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
           {MONEDAS.map(mo => {
             const esperado = m[mo].esperado;
@@ -564,7 +554,10 @@ const TabCaja = ({ esAdmin }) => {
               <div key={mo} style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 1fr) minmax(150px, 1.2fr)', gap: 12, alignItems: 'center', background: INFO[mo].fondo, borderRadius: 14, padding: '12px 14px' }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: '0.84rem', color: INFO[mo].color, display: 'flex', alignItems: 'center', gap: 6 }}><Chip moneda={mo} /> {INFO[mo].nombre}</div>
-                  <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)' }}>Esperado: <strong>{fmt(mo, esperado)}</strong></div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--texto-suave)' }}>Efectivo esperado: <strong>{fmt(mo, esperado)}</strong></div>
+                  {m[mo].transferencias > 0 && (
+                    <div style={{ fontSize: '0.68rem', color: 'var(--texto-suave)' }}>Transferencias {fmt(mo, m[mo].transferencias)} (no se cuentan)</div>
+                  )}
                   <div style={{ marginTop: 4 }}><Diferencia moneda={mo} valor={dif} /></div>
                 </div>
                 <InputMonto moneda={mo} value={contado[mo]} onChange={v => setContado(c => ({ ...c, [mo]: v }))} />

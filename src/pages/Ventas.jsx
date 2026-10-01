@@ -804,7 +804,7 @@ export default function Ventas() {
         <div style={{ display: 'flex', gap: 8 }}>
           {[
             { v: 'pos', icon: <RiShoppingCartLine />, label: 'Punto de venta' },
-            { v: 'historial', icon: <RiHistoryLine />, label: 'Historial' }
+            ...(esAdmin ? [{ v: 'historial', icon: <RiHistoryLine />, label: 'Historial' }] : [])
           ].map(tab => (
             <button key={tab.v} onClick={() => setVista(tab.v)} style={{
               display: 'flex', alignItems: 'center', gap: 8,
