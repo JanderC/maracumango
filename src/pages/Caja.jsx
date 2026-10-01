@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import API from '../api/axios';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
+import { soportaImpresionDirecta, conectarImpresora, enviarAImpresora } from '../utils/impresora';
+import { construirTicketCierre } from '../utils/ticketCierre';
 import {
   RiSafe2Line, RiLockLine, RiLockUnlockLine, RiArrowUpCircleLine, RiArrowDownCircleLine,
   RiCloseLine, RiRefreshLine, RiCalendarCheckLine, RiDeleteBin6Line, RiHistoryLine,
   RiFileList3Line, RiEyeLine, RiCheckboxCircleLine, RiErrorWarningLine,
-  RiArrowLeftSLine, RiArrowRightSLine, RiShieldKeyholeLine, RiBankCardLine, RiCalendarLine
+  RiArrowLeftSLine, RiArrowRightSLine, RiShieldKeyholeLine, RiBankCardLine, RiCalendarLine, RiPrinterLine
 } from 'react-icons/ri';
 
 /* ════════════════════════════════════════════════════════════════
@@ -37,6 +39,18 @@ const sumarDias = (fecha, n) => { const d = new Date(`${fecha}T12:00:00`); d.set
 const lunesDe = (fecha) => { const d = new Date(`${fecha}T12:00:00`); const dia = (d.getDay() + 6) % 7; return sumarDias(fecha, -dia); };
 
 const errorApi = (err, texto) => toast.error(err.response?.data?.mensaje || texto);
+
+// Recibo de cierre (resumen por moneda + todas las ventas) en la impresora térmica
+// Nunca lanza error: un problema de impresión no debe afectar el cierre de caja.
+const imprimirCierre = async (sesion) => {
+  try {
+    const bytes = soportaImpresionDirecta() ? construirTicketCierre(sesion) : new Uint8Array();
+    await enviarAImpresora(bytes, '🖨️ Recibo de cierre enviado a la impresora');
+  } catch (err) {
+    console.error('Error armando el recibo de cierre:', err);
+    toast.error('No se pudo imprimir el recibo de cierre');
+  }
+};
 
 /* ════════════════════════════════════════════════════════════════
    Componentes base
@@ -221,7 +235,13 @@ const ListaMovimientos = ({ movimientos, onEliminar }) => {
 /* ─── Detalle de una sesión (modal y resultado de cierre) ─── */
 const DetalleSesion = ({ sesion }) => (
   <div>
-    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: '0.8rem', marginBottom: 14 }}>
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: '0.8rem', marginBottom: 14, alignItems: 'center' }}>
+      {sesion.estado === 'cerrada' && sesion.lista_ventas && (
+        <button onClick={() => imprimirCierre(sesion)} style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '2px solid var(--naranja)',
+          background: '#fff', color: 'var(--naranja)', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', order: 99, marginLeft: 'auto'
+        }}><RiPrinterLine /> Imprimir recibo</button>
+      )}
       <span style={{ background: 'var(--crema)', borderRadius: 10, padding: '6px 12px' }}>
         <RiLockUnlockLine style={{ color: 'var(--verde)' }} /> {fmtFechaHora(sesion.abierta_en)} · {sesion.abierta_por}
       </span>
@@ -373,6 +393,7 @@ const TabCaja = ({ esAdmin }) => {
       toast.success('🔒 Caja cerrada');
       setModalCierre(false);
       setResultadoCierre(data.sesion);
+      imprimirCierre(data.sesion); // recibo de cierre con todas las ventas
       await cargar();
     } catch (err) { errorApi(err, 'No se pudo cerrar la caja'); }
     finally { setEnviando(false); }
@@ -558,6 +579,14 @@ const TabCaja = ({ esAdmin }) => {
           style={{ width: '100%', padding: 14, fontSize: '0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <RiLockLine /> {enviando ? 'Cerrando...' : 'Confirmar cierre de caja'}
         </button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, fontSize: '0.76rem', color: 'var(--texto-suave)', flexWrap: 'wrap' }}>
+          <RiPrinterLine /> Al cerrar se imprime el recibo con todas las ventas.
+          {soportaImpresionDirecta() && (
+            <button type="button" onClick={conectarImpresora} style={{ background: 'none', border: 'none', color: 'var(--verde)', fontWeight: 700, cursor: 'pointer', fontFamily: 'Poppins', fontSize: '0.76rem', padding: 0 }}>
+              🔌 Conectar impresora
+            </button>
+          )}
+        </div>
       </Modal>
     </div>
   );

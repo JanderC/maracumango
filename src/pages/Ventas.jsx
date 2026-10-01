@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import API from '../api/axios';
 import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
+import { soportaImpresionDirecta, conectarImpresora, enviarAImpresora } from '../utils/impresora';
 import {
   RiAddLine, RiSubtractLine, RiDeleteBinLine,
   RiSearchLine, RiCloseLine, RiCheckLine,
@@ -162,53 +163,7 @@ const ModalVariantes = ({ padre, variantes, onSeleccionar, onClose }) => {
   );
 };
 
-/* ════════════════════════════════════════════════════════════════
-   🖨️ IMPRESIÓN — PLACEHOLDER
-   Todavía no hay impresora ni API definida. Esta función es el ÚNICO
-   punto donde se debe conectar la impresión real más adelante
-   (ej: llamar a un endpoint del backend que hable con la impresora
-   térmica, usar una librería tipo qz-tray, node-thermal-printer, o
-   una API de impresión en red). Por ahora solo simula la acción
-   para no romper el flujo ni bloquear al cajero.
-   ════════════════════════════════════════════════════════════════ */
-/* ─── Impresión térmica ESC/POS por Web Serial (COM del Bluetooth emparejado en Windows) ───
-   Compatible solo con Chrome/Edge de escritorio. La JAL-880L (u otra impresora térmica
-   80mm ESC/POS) debe estar previamente emparejada por Bluetooth en Windows: eso le crea
-   un puerto COM virtual, y es ese puerto el que se elige aquí. */
-let puertoImpresoraCache = null;
-
-const soportaImpresionDirecta = () => typeof navigator !== 'undefined' && 'serial' in navigator;
-
-// Abre el selector de puertos del navegador (requiere click del usuario) y guarda el permiso.
-// Solo hay que hacerlo una vez; el navegador recuerda el puerto autorizado.
-const conectarImpresora = async () => {
-  if (!soportaImpresionDirecta()) {
-    toast.error('Este navegador no soporta impresión directa. Usa Chrome o Edge en Windows.');
-    return null;
-  }
-  try {
-    const puerto = await navigator.serial.requestPort();
-    puertoImpresoraCache = puerto;
-    toast.success('🔌 Impresora conectada correctamente');
-    return puerto;
-  } catch {
-    // El usuario cerró el selector sin elegir nada
-    return null;
-  }
-};
-
-// Recupera un puerto ya autorizado antes, sin volver a preguntar (para imprimir automático)
-const obtenerPuertoAutorizado = async () => {
-  if (!soportaImpresionDirecta()) return null;
-  if (puertoImpresoraCache) return puertoImpresoraCache;
-  const puertos = await navigator.serial.getPorts();
-  if (puertos.length > 0) {
-    puertoImpresoraCache = puertos[0];
-    return puertoImpresoraCache;
-  }
-  return null;
-};
-
+/* ─── Impresión térmica: conexión compartida en utils/impresora.js ─── */
 // Construye el ticket en comandos ESC/POS (80mm, ~42-48 columnas de texto)
 const construirTicketESCPOS = (venta) => {
   const ESC = 0x1B, GS = 0x1D;
@@ -267,29 +222,8 @@ const construirTicketESCPOS = (venta) => {
   return new Uint8Array(bytes);
 };
 
-const imprimirOrdenPreparacion = async (venta) => {
-  if (!soportaImpresionDirecta()) {
-    toast.error('Impresión directa no disponible en este navegador (usa Chrome/Edge en Windows)');
-    return;
-  }
-  const puerto = await obtenerPuertoAutorizado();
-  if (!puerto) {
-    toast.error('Primero conecta la impresora con el botón "🔌 Conectar impresora"');
-    return;
-  }
-  try {
-    if (!puerto.readable && !puerto.writable) {
-      await puerto.open({ baudRate: 9600 }); // la mayoría de térmicas BT usan 9600; si no imprime bien, prueba 19200 o 115200
-    }
-    const writer = puerto.writable.getWriter();
-    await writer.write(construirTicketESCPOS(venta));
-    writer.releaseLock();
-    toast.success('🖨️ Orden enviada a la impresora');
-  } catch (err) {
-    console.error('Error imprimiendo:', err);
-    toast.error('No se pudo imprimir. Verifica que la impresora esté encendida y conectada.');
-  }
-};
+const imprimirOrdenPreparacion = (venta) =>
+  enviarAImpresora(construirTicketESCPOS(venta), '🖨️ Orden enviada a la impresora');
 
 /* ─── Modal ticket ─── */
 const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
