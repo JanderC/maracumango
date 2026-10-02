@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
 import { soportaImpresionDirecta, conectarImpresora, enviarAImpresora } from '../utils/impresora';
 import { construirTicketCierre } from '../utils/ticketCierre';
+import { imprimirCierreCarta } from '../utils/reporteCierre';
 import {
   RiSafe2Line, RiLockLine, RiLockUnlockLine, RiArrowUpCircleLine, RiArrowDownCircleLine,
   RiCloseLine, RiRefreshLine, RiCalendarCheckLine, RiDeleteBin6Line, RiHistoryLine,
@@ -237,10 +238,16 @@ const DetalleSesion = ({ sesion }) => (
   <div>
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: '0.8rem', marginBottom: 14, alignItems: 'center' }}>
       {sesion.estado === 'cerrada' && sesion.lista_ventas && (
-        <button onClick={() => imprimirCierre(sesion)} style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '2px solid var(--naranja)',
-          background: '#fff', color: 'var(--naranja)', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', order: 99, marginLeft: 'auto'
-        }}><RiPrinterLine /> Imprimir recibo</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', order: 99, marginLeft: 'auto' }}>
+          <button onClick={() => imprimirCierreCarta(sesion)} title="Impresora normal, hoja tamaño carta" style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '2px solid var(--verde)',
+            background: 'var(--verde)', color: '#fff', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer'
+          }}><RiPrinterLine /> Imprimir en hoja carta</button>
+          <button onClick={() => imprimirCierre(sesion)} title="Impresora térmica de 80 mm" style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '2px solid var(--naranja)',
+            background: '#fff', color: 'var(--naranja)', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer'
+          }}><RiPrinterLine /> Recibo térmico</button>
+        </div>
       )}
       <span style={{ background: 'var(--crema)', borderRadius: 10, padding: '6px 12px' }}>
         <RiLockUnlockLine style={{ color: 'var(--verde)' }} /> {fmtFechaHora(sesion.abierta_en)} · {sesion.abierta_por}
@@ -573,7 +580,7 @@ const TabCaja = ({ esAdmin }) => {
           <RiLockLine /> {enviando ? 'Cerrando...' : 'Confirmar cierre de caja'}
         </button>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, fontSize: '0.76rem', color: 'var(--texto-suave)', flexWrap: 'wrap' }}>
-          <RiPrinterLine /> Al cerrar se imprime el recibo con todas las ventas.
+          <RiPrinterLine /> Al cerrar se imprime el recibo en la térmica. También podrás imprimirlo en hoja carta.
           {soportaImpresionDirecta() && (
             <button type="button" onClick={conectarImpresora} style={{ background: 'none', border: 'none', color: 'var(--verde)', fontWeight: 700, cursor: 'pointer', fontFamily: 'Poppins', fontSize: '0.76rem', padding: 0 }}>
               🔌 Conectar impresora

@@ -235,6 +235,14 @@ const construirTicketESCPOS = (venta) => {
     texto(`${venta.notas}\n`);
   }
 
+  // Datos de contacto del negocio al pie del ticket
+  raw([ESC, 0x61, 0x01]);    // centrar
+  texto('\n');
+  linea();
+  texto('Instagram: @maracumaracumango1\n');
+  texto('Cel: 04227184138\n');
+  raw([ESC, 0x61, 0x00]);    // alinear izquierda
+
   texto('\n\n\n');
   raw([GS, 0x56, 0x42, 0x00]); // corte parcial (si la impresora lo soporta; si no, no hace nada)
   return new Uint8Array(bytes);
