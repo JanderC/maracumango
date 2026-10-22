@@ -9,7 +9,7 @@ import {
   RiSafe2Line, RiLockLine, RiLockUnlockLine, RiArrowUpCircleLine, RiArrowDownCircleLine,
   RiCloseLine, RiRefreshLine, RiCalendarCheckLine, RiDeleteBin6Line, RiHistoryLine,
   RiFileList3Line, RiEyeLine, RiCheckboxCircleLine, RiErrorWarningLine,
-  RiArrowLeftSLine, RiArrowRightSLine, RiShieldKeyholeLine, RiBankCardLine, RiCalendarLine, RiPrinterLine
+  RiArrowLeftSLine, RiArrowRightSLine, RiShieldKeyholeLine, RiBankCardLine, RiCalendarLine, RiPrinterLine, RiEditLine
 } from 'react-icons/ri';
 
 /* ════════════════════════════════════════════════════════════════
@@ -234,11 +234,21 @@ const ListaMovimientos = ({ movimientos, onEliminar }) => {
 };
 
 /* ─── Detalle de una sesión (modal y resultado de cierre) ─── */
-const DetalleSesion = ({ sesion }) => (
+const DetalleSesion = ({ sesion, onCorregir }) => (
   <div>
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: '0.8rem', marginBottom: 14, alignItems: 'center' }}>
       {sesion.estado === 'cerrada' && sesion.lista_ventas && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', order: 99, marginLeft: 'auto' }}>
+          {onCorregir && (
+            <button onClick={() => onCorregir(sesion)}
+              disabled={!!sesion.cierre_semanal_id}
+              title={sesion.cierre_semanal_id ? 'Esta caja ya está en un cierre semanal' : 'Corregir lo contado al cerrar'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '2px solid #1565C0',
+                background: '#fff', color: '#1565C0', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.8rem',
+                cursor: sesion.cierre_semanal_id ? 'not-allowed' : 'pointer', opacity: sesion.cierre_semanal_id ? 0.45 : 1
+              }}><RiEditLine /> Corregir cierre</button>
+          )}
           <button onClick={() => imprimirCierreCarta(sesion)} title="Impresora normal, hoja tamaño carta" style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: '2px solid var(--verde)',
             background: 'var(--verde)', color: '#fff', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer'
@@ -272,8 +282,97 @@ const DetalleSesion = ({ sesion }) => (
     )}
     <Etiqueta>Movimientos</Etiqueta>
     <ListaMovimientos movimientos={sesion.movimientos} />
+    {sesion.correcciones?.length > 0 && (
+      <div style={{ marginTop: 18 }}>
+        <Etiqueta>Historial de correcciones del cierre ({sesion.correcciones.length})</Etiqueta>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {sesion.correcciones.map(c => (
+            <div key={c.id} style={{ border: '1px solid #BBDEFB', background: '#F5FAFF', borderRadius: 12, padding: '10px 14px', fontSize: '0.8rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                <strong style={{ color: '#1565C0' }}><RiEditLine /> {c.motivo}</strong>
+                <span style={{ color: 'var(--texto-suave)', fontSize: '0.74rem' }}>{fmtFechaHora(c.corregido_en)} · {c.corregido_por || '—'}</span>
+              </div>
+              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                {MONEDAS.map(m => {
+                  const k = `contado_${m.toLowerCase()}`;
+                  const a = Number(c.antes[k] || 0), d = Number(c.despues[k] || 0);
+                  if (Math.abs(a - d) < 0.005) return null;
+                  return <span key={m}><Chip moneda={m} /> <s style={{ color: '#9E9E9E' }}>{fmt(m, a)}</s> → <strong>{fmt(m, d)}</strong></span>;
+                })}
+                {(c.antes.notas_cierre || null) !== (c.despues.notas_cierre || null) && (
+                  <span>📝 Nota: <s style={{ color: '#9E9E9E' }}>{c.antes.notas_cierre || '(vacía)'}</s> → <strong>{c.despues.notas_cierre || '(vacía)'}</strong></span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
   </div>
 );
+
+/* ─── Corregir lo contado de una caja cerrada (queda en el historial) ─── */
+const ModalCorregirCierre = ({ sesion, onClose, onCorregido }) => {
+  const [form, setForm] = useState({ COP: '', USD: '', BS: '', notas: '', motivo: '' });
+  const [enviando, setEnviando] = useState(false);
+  useEffect(() => {
+    if (sesion) setForm({
+      COP: String(sesion.monedas.COP.contado ?? 0), USD: String(sesion.monedas.USD.contado ?? 0), BS: String(sesion.monedas.BS.contado ?? 0),
+      notas: sesion.notas_cierre || '', motivo: ''
+    });
+  }, [sesion]);
+  if (!sesion) return null;
+
+  const guardar = async () => {
+    if (MONEDAS.some(m => form[m] === '')) return toast.error('Escribe lo contado en las 3 monedas (0 si no hay)');
+    if (form.motivo.trim().length < 5) return toast.error('Explica el motivo de la corrección');
+    setEnviando(true);
+    try {
+      const { data } = await API.put(`/caja/sesiones/${sesion.id}/cierre`, {
+        contado_cop: form.COP, contado_usd: form.USD, contado_bs: form.BS, notas: form.notas, motivo: form.motivo
+      });
+      toast.success('✏️ Cierre corregido');
+      onCorregido(data.sesion);
+    } catch (err) { errorApi(err, 'No se pudo corregir el cierre'); }
+    finally { setEnviando(false); }
+  };
+
+  return (
+    <Modal show onClose={onClose} titulo={`Corregir cierre de caja #${sesion.id}`} icono={<RiEditLine />} color="#1565C0" maxWidth={620}>
+      <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginTop: -6 }}>
+        Escribe el efectivo que realmente había al cerrar. El cambio queda guardado en el historial con el valor anterior, tu nombre y el motivo.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 14 }}>
+        {MONEDAS.map(mo => {
+          const d = sesion.monedas[mo];
+          const dif = form[mo] === '' ? null : Math.round((Number(form[mo]) - d.esperado) * 100) / 100;
+          const cambio = form[mo] !== '' && Math.abs(Number(form[mo]) - Number(d.contado || 0)) >= 0.005;
+          return (
+            <div key={mo} style={{ display: 'grid', gridTemplateColumns: 'minmax(130px, 1fr) minmax(150px, 1.2fr)', gap: 12, alignItems: 'center', background: INFO[mo].fondo, borderRadius: 14, padding: '12px 14px' }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.84rem', color: INFO[mo].color, display: 'flex', alignItems: 'center', gap: 6 }}><Chip moneda={mo} /> {INFO[mo].nombre}</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)' }}>Esperado: <strong>{fmt(mo, d.esperado)}</strong></div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)' }}>Registrado: {cambio ? <s>{fmt(mo, d.contado)}</s> : fmt(mo, d.contado)}</div>
+                <div style={{ marginTop: 4 }}><Diferencia moneda={mo} valor={dif} /></div>
+              </div>
+              <InputMonto moneda={mo} value={form[mo]} onChange={v => setForm(f => ({ ...f, [mo]: v }))} />
+            </div>
+          );
+        })}
+      </div>
+      <Etiqueta>Nota del cierre (opcional)</Etiqueta>
+      <input className="input-mm" value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} style={{ marginBottom: 12 }} />
+      <Etiqueta>Motivo de la corrección (obligatorio)</Etiqueta>
+      <input className="input-mm" placeholder="Ej: me equivoqué al escribir el monto contado" value={form.motivo}
+        onChange={e => setForm(f => ({ ...f, motivo: e.target.value }))} style={{ marginBottom: 18 }} />
+      <button onClick={guardar} disabled={enviando} style={{
+        width: '100%', padding: 13, borderRadius: 12, border: 'none', background: '#1565C0', color: '#fff',
+        fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.92rem', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+      }}><RiEditLine /> {enviando ? 'Guardando...' : 'Guardar corrección'}</button>
+    </Modal>
+  );
+};
 
 /* ─── Confirmación con contraseña ─── */
 const ModalConfirmar = ({ show, onClose, titulo, children, pedirTexto, textoBoton, onConfirmar }) => {
@@ -1000,11 +1099,11 @@ const TabSemanal = () => {
 /* ════════════════════════════════════════════════════════════════
    TAB 4 — HISTORIAL DE CAJAS
    ════════════════════════════════════════════════════════════════ */
-const TabHistorial = ({ onVerSesion }) => {
+const TabHistorial = ({ onVerSesion, recargar }) => {
   const [sesiones, setSesiones] = useState(null);
   useEffect(() => {
     API.get('/caja/sesiones?limite=100').then(({ data }) => setSesiones(data.sesiones)).catch(err => errorApi(err, 'Error cargando historial'));
-  }, []);
+  }, [recargar]);
   if (!sesiones) return <Spinner />;
   if (!sesiones.length) return <div className="card-mm"><Vacio icono="🗃️" texto="Aún no hay cajas registradas" /></div>;
   return (
@@ -1021,7 +1120,8 @@ const TabHistorial = ({ onVerSesion }) => {
           <tbody>
             {sesiones.map(s => (
               <tr key={s.id} style={{ borderTop: '1px solid #F5F5F5' }}>
-                <td style={{ padding: '12px 14px', fontWeight: 700 }}>#{s.id}{s.cierre_semanal_id && <span title="Incluida en un cierre semanal" style={{ marginLeft: 4 }}>📅</span>}</td>
+                <td style={{ padding: '12px 14px', fontWeight: 700 }}>#{s.id}{s.cierre_semanal_id && <span title="Incluida en un cierre semanal" style={{ marginLeft: 4 }}>📅</span>}
+                  {s.correcciones > 0 && <span title={`Cierre corregido ${s.correcciones} ${s.correcciones === 1 ? 'vez' : 'veces'}`} style={{ marginLeft: 6, fontSize: '0.66rem', background: '#E3F2FD', color: '#1565C0', borderRadius: 10, padding: '1px 7px', fontWeight: 700 }}>✏️ corregido</span>}</td>
                 <td style={{ padding: '12px 14px' }}>{fmtFechaHora(s.abierta_en)}<div style={{ fontSize: '0.7rem', color: 'var(--texto-suave)' }}>{s.abierta_por}</div></td>
                 <td style={{ padding: '12px 14px' }}>{s.cerrada_en ? fmtFechaHora(s.cerrada_en) : '—'}<div style={{ fontSize: '0.7rem', color: 'var(--texto-suave)' }}>{s.cerrada_por || ''}</div></td>
                 <td style={{ padding: '12px 14px' }}><EstadoSesion estado={s.estado} /></td>
@@ -1058,6 +1158,8 @@ export default function Caja() {
   const esAdmin = usuario?.rol === 'admin';
   const [tab, setTab] = useState('caja');
   const [sesionDetalle, setSesionDetalle] = useState(null);
+  const [corrigiendo, setCorrigiendo] = useState(null);
+  const [recargarHistorial, setRecargarHistorial] = useState(0);
 
   const verSesion = async (id) => {
     try {
@@ -1095,11 +1197,14 @@ export default function Caja() {
       {tab === 'caja' && <TabCaja esAdmin={esAdmin} />}
       {tab === 'diario' && esAdmin && <TabDiario onVerSesion={verSesion} />}
       {tab === 'semanal' && esAdmin && <TabSemanal />}
-      {tab === 'historial' && esAdmin && <TabHistorial onVerSesion={verSesion} />}
+      {tab === 'historial' && esAdmin && <TabHistorial onVerSesion={verSesion} recargar={recargarHistorial} />}
 
       <Modal show={!!sesionDetalle} onClose={() => setSesionDetalle(null)} titulo={`Caja #${sesionDetalle?.id}`} icono={<RiSafe2Line />} maxWidth={880}>
-        {sesionDetalle && <DetalleSesion sesion={sesionDetalle} />}
+        {sesionDetalle && <DetalleSesion sesion={sesionDetalle} onCorregir={esAdmin ? setCorrigiendo : null} />}
       </Modal>
+
+      <ModalCorregirCierre sesion={corrigiendo} onClose={() => setCorrigiendo(null)}
+        onCorregido={(s) => { setCorrigiendo(null); setSesionDetalle(s); setRecargarHistorial(n => n + 1); }} />
     </div>
   );
 }

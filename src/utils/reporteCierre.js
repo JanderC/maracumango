@@ -98,6 +98,13 @@ export const htmlReporteCierre = (sesion) => {
     <div><b>Total vendido (equivalente)</b>${monto('COP', v.total_cop)}<br>${monto('USD', v.total_usd)}</div>
   </div>
 
+  ${sesion.correcciones?.length ? `<div class="notas" style="margin-top:10px;border-color:#90CAF9;background:#F5FAFF">
+    <strong style="color:#1565C0">Cierre corregido ${sesion.correcciones.length} ${sesion.correcciones.length === 1 ? 'vez' : 'veces'}.</strong>
+    ${sesion.correcciones.map(c => `<div style="font-size:9pt;margin-top:3px">${fechaHora(c.corregido_en)} · ${esc(c.corregido_por || '')} · ${esc(c.motivo)} —
+      ${MONEDAS.filter(m => Math.abs(Number(c.antes['contado_' + m.toLowerCase()] || 0) - Number(c.despues['contado_' + m.toLowerCase()] || 0)) >= 0.005)
+        .map(m => `${m}: ${monto(m, c.antes['contado_' + m.toLowerCase()])} → ${monto(m, c.despues['contado_' + m.toLowerCase()])}`).join(', ') || 'solo nota'}</div>`).join('')}
+  </div>` : ''}
+
   <h2>Resumen por moneda</h2>
   <table><thead><tr><th>Concepto</th>${MONEDAS.map(m => `<th class="num">${NOMBRE[m]}</th>`).join('')}</tr></thead><tbody>${filasMoneda}</tbody></table>
 

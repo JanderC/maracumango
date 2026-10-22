@@ -48,6 +48,13 @@ export const lineasTicketCierre = (sesion) => {
     add(filaTicket('  por', sesion.cerrada_por || '-'));
   }
   add(filaTicket('Impreso:', fechaHora(new Date().toISOString())));
+  if (sesion.correcciones?.length) {
+    const c = sesion.correcciones[0];
+    add(`CIERRE CORREGIDO (${sesion.correcciones.length})`, 'negrita');
+    add(filaTicket('  Ultima:', `${fechaHora(c.corregido_en)}`));
+    add(filaTicket('  por', c.corregido_por || '-'));
+    add(`  Motivo: ${c.motivo}`.slice(0, 42));
+  }
   sep();
 
   const v = sesion.ventas || {};
