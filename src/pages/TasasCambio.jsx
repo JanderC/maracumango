@@ -8,7 +8,7 @@ export default function TasasCambio() {
   const [historial, setHistorial] = useState([]);
   const [cargandoBCV, setCargandoBCV] = useState(false);
   const [cargandoHist, setCargandoHist] = useState(true);
-  const [formManual, setFormManual] = useState({ moneda: 'BS', tasa_por_usd: '' });
+  const [formManual, setFormManual] = useState({ moneda: 'COP_BS', tasa_por_usd: '' });
   const [guardando, setGuardando] = useState(false);
   const [importando, setImportando] = useState('');
 
@@ -58,6 +58,11 @@ export default function TasasCambio() {
 
   const ultimaBS = historial.find(t => t.moneda === 'BS');
   const ultimaCOP = historial.find(t => t.moneda === 'COP');
+  const ultimaCopBs = historial.find(t => t.moneda === 'COP_BS');
+  const dos = (v) => parseFloat(v).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Cómo se explica cada tipo de tasa
+  const NOMBRE = { COP_BS: 'Bolívar en pesos', BS: 'Bolívar por dólar', COP: 'Peso por dólar' };
+  const EQUIVALE = { COP_BS: (v) => `1 Bs = ${dos(v)} pesos`, BS: (v) => `1 USD = ${dos(v)} Bs`, COP: (v) => `1 USD = ${dos(v)} pesos` };
 
   return (
     <div>
@@ -69,8 +74,9 @@ export default function TasasCambio() {
       {/* Tasas activas */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
         {[
-          { moneda: 'BS', label: '🇻🇪 Bolívar', tasa: ultimaBS, color: '#1565C0', bg: '#E3F2FD' },
-          { moneda: 'COP', label: '🇨🇴 Peso colombiano', tasa: ultimaCOP, color: '#E65100', bg: '#FFF3E0' }
+          { moneda: 'COP_BS', label: '🇻🇪 Bolívar en pesos (la que se usa para cobrar en Bs)', tasa: ultimaCopBs, color: '#6A1B9A', bg: '#F3E5F5' },
+          { moneda: 'COP', label: '🇨🇴 Peso colombiano', tasa: ultimaCOP, color: '#E65100', bg: '#FFF3E0' },
+          { moneda: 'BS', label: '🇻🇪 Bolívar por dólar (referencia BCV)', tasa: ultimaBS, color: '#1565C0', bg: '#E3F2FD' }
         ].map(item => (
           <div key={item.moneda} className="card-mm">
             <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 8 }}>{item.label}</div>
@@ -81,7 +87,7 @@ export default function TasasCambio() {
               {item.tasa ? `Actualizada: ${new Date(item.tasa.actualizado_en).toLocaleDateString('es-VE')}` : 'Sin tasa registrada'}
             </div>
             <div style={{ marginTop: 10, background: item.bg, borderRadius: 10, padding: '6px 12px', fontSize: '0.78rem', color: item.color, fontWeight: 600 }}>
-              1 USD = {item.tasa ? parseFloat(item.tasa.tasa_por_usd).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '?'} {item.moneda}
+              {item.tasa ? EQUIVALE[item.moneda](item.tasa.tasa_por_usd) : 'Sin tasa registrada'}
             </div>
           </div>
         ))}
@@ -150,8 +156,8 @@ export default function TasasCambio() {
           <h6 style={{ fontWeight: 700, marginBottom: 20 }}>✏️ Ingresar tasa manual</h6>
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>Moneda</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {['BS', 'COP'].map(m => (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              {['COP_BS', 'COP', 'BS'].map(m => (
                 <button key={m} onClick={() => setFormManual({ ...formManual, moneda: m })} style={{
                   padding: '10px', borderRadius: 12, border: '2px solid',
                   borderColor: formManual.moneda === m ? 'var(--verde)' : '#E0E0E0',
@@ -159,21 +165,21 @@ export default function TasasCambio() {
                   color: formManual.moneda === m ? 'var(--verde)' : 'var(--texto-suave)',
                   fontFamily: 'Poppins', fontWeight: 700, cursor: 'pointer'
                 }}>
-                  {m === 'BS' ? '🇻🇪 Bolívar' : '🇨🇴 COP'}
+                  {m === 'COP_BS' ? '🇻🇪 Bs en pesos' : m === 'BS' ? '🇻🇪 Bs por USD' : '🇨🇴 Pesos por USD'}
                 </button>
               ))}
             </div>
           </div>
           <div style={{ marginBottom: 20 }}>
             <label style={{ fontSize: '0.82rem', fontWeight: 600, marginBottom: 6, display: 'block' }}>
-              Tasa (1 USD = ? {formManual.moneda})
+              {formManual.moneda === 'COP_BS' ? 'Tasa (1 Bs = ? pesos, con 2 decimales)' : `Tasa (1 USD = ? ${formManual.moneda === 'COP' ? 'pesos' : 'Bs'})`}
             </label>
             <input
               className="input-mm"
               type="number"
               step="0.01"
               min="0"
-              placeholder={formManual.moneda === 'BS' ? 'Ej: 36.50' : 'Ej: 4050'}
+              placeholder={formManual.moneda === 'COP_BS' ? 'Ej: 2.85' : formManual.moneda === 'BS' ? 'Ej: 1071.50' : 'Ej: 3000'}
               value={formManual.tasa_por_usd}
               onChange={e => setFormManual({ ...formManual, tasa_por_usd: e.target.value })}
             />
@@ -181,7 +187,8 @@ export default function TasasCambio() {
           {formManual.tasa_por_usd && (
             <div style={{ background: '#E8F5E9', borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
               <span style={{ fontSize: '0.82rem', color: '#1B5E20', fontWeight: 600 }}>
-                💡 1 USD = {parseFloat(formManual.tasa_por_usd).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {formManual.moneda}
+                💡 {EQUIVALE[formManual.moneda](formManual.tasa_por_usd)}
+                {formManual.moneda === 'COP_BS' && parseFloat(formManual.tasa_por_usd) > 0 && ` · un producto de 10.000 pesos = Bs. ${dos(10000 / parseFloat(formManual.tasa_por_usd))}`}
               </span>
             </div>
           )}
@@ -203,10 +210,10 @@ export default function TasasCambio() {
               <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 10, marginBottom: 6, background: '#FAFAFA' }}>
                 <div>
                   <span style={{
-                    background: t.moneda === 'BS' ? '#E3F2FD' : '#FFF3E0',
-                    color: t.moneda === 'BS' ? '#1565C0' : '#E65100',
+                    background: t.moneda === 'COP_BS' ? '#F3E5F5' : t.moneda === 'BS' ? '#E3F2FD' : '#FFF3E0',
+                    color: t.moneda === 'COP_BS' ? '#6A1B9A' : t.moneda === 'BS' ? '#1565C0' : '#E65100',
                     borderRadius: 20, padding: '2px 8px', fontSize: '0.72rem', fontWeight: 700, marginRight: 8
-                  }}>{t.moneda}</span>
+                  }}>{NOMBRE[t.moneda] || t.moneda}</span>
                   <span style={{ fontSize: '0.8rem', color: 'var(--texto-suave)' }}>
                     {new Date(t.actualizado_en).toLocaleDateString('es-VE')}
                   </span>

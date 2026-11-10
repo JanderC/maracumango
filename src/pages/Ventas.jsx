@@ -18,6 +18,14 @@ const partesPago = (v) => (v?.moneda_pago_2 ? [
   { moneda: v.moneda_pago, tipo: v.tipo_pago, monto: v.total_pagado, banco: v.nombre_banco },
   { moneda: v.moneda_pago_2, tipo: v.tipo_pago_2, monto: v.total_pagado_2, banco: v.nombre_banco_2 }
 ] : null);
+// Pesos por 1 bolívar con que se cobró la parte en Bs de una venta (null si no hubo Bs)
+const pesosPorBsDeVenta = (v) => {
+  if (!v) return null;
+  if (v.moneda_pago_2 === 'BS' && Number(v.total_pagado_2) > 0) return Number(v.total_cop_2) / Number(v.total_pagado_2);
+  if (v.moneda_pago === 'BS' && Number(v.total_pagado) > 0) return (Number(v.total_cop) - Number(v.total_cop_2 || 0)) / Number(v.total_pagado);
+  return null;
+};
+const fmtTasaBs = (n) => Number(n).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const unir = (...valores) => [...new Set(valores.filter(Boolean))].join(' + ');
 
 /* ─── Modal genérico ─── */
@@ -283,9 +291,8 @@ const construirTicketESCPOS = (venta) => {
     texto(`TOTAL: ${simboloPago} ${monto(venta.total_pagado)}\n`);
   }
   raw([ESC, 0x21, 0x00]);
-  if ((venta.moneda_pago === 'BS' || venta.moneda_pago_2 === 'BS') && venta.tasa_cambio_usada) {
-    texto(`Tasa BS/USD: ${Number(venta.tasa_cambio_usada).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}\n`);
-  }
+  const tasaBsVenta = pesosPorBsDeVenta(venta);
+  if (tasaBsVenta) texto(`Tasa: 1 Bs = ${fmtTasaBs(tasaBsVenta)} pesos\n`);
 
   if (venta.tipo_pago === 'efectivo' && venta.monto_recibido !== null && venta.monto_recibido !== undefined) {
     texto(`Pago con: ${simboloPago} ${monto(venta.monto_recibido)}\n`);
@@ -475,8 +482,12 @@ export default function Ventas() {
   const [toppingsExpandidoIdx, setToppingsExpandidoIdx] = useState(null); // idx del item del carrito con el split de toppings abierto
   const [toppingsDisponibles, setToppingsDisponibles] = useState([]); // TODOS los toppings activos del sistema — disponibles para cualquier producto
   const [moneda, setMoneda] = useState('COP');
-  const [tasa, setTasa] = useState(''); // tasa BS/USD, solo aplica si moneda === 'BS'
+  const [pesosPorBs, setPesosPorBs] = useState(''); // tasa del bolívar como la maneja el negocio: pesos por 1 Bs (ej. 2.85)
   const [tasaCop, setTasaCop] = useState(null); // tasa COP/USD vigente (objeto tasas_cambio)
+  // Tasa BS/USD que usan los cálculos y que se guarda en la venta: tasa COP ÷ pesos por bolívar.
+  // Así el monto en Bs queda exactamente en pesos ÷ (pesos por Bs).
+  const tasa = parseFloat(pesosPorBs) > 0 && tasaCop?.tasa_por_usd
+    ? String(parseFloat(tasaCop.tasa_por_usd) / parseFloat(pesosPorBs)) : '';
   const [tipoPago, setTipoPago] = useState('efectivo');
   const [montoRecibido, setMontoRecibido] = useState('');
   const [cuentaId, setCuentaId] = useState('');
@@ -531,10 +542,12 @@ export default function Ventas() {
       setProductos(r1.data.productos);
       setCategorias(r2.data.categorias);
       setTasas(r3.data.tasas);
-      const ultimaBS = r3.data.tasas.find(t => t.moneda === 'BS');
-      if (ultimaBS) setTasa(ultimaBS.tasa_por_usd);
       const ultimaCOP = r3.data.tasas.find(t => t.moneda === 'COP');
       setTasaCop(ultimaCOP || null);
+      const ultimaCopBs = r3.data.tasas.find(t => t.moneda === 'COP_BS');
+      const ultimaBS = r3.data.tasas.find(t => t.moneda === 'BS');
+      if (ultimaCopBs) setPesosPorBs(Number(ultimaCopBs.tasa_por_usd).toFixed(2));
+      else if (ultimaBS && ultimaCOP) setPesosPorBs((Number(ultimaCOP.tasa_por_usd) / Number(ultimaBS.tasa_por_usd)).toFixed(2));
       setCarpetas(r4.data.carpetas || []);
       // Lista COMPLETA de toppings activos del sistema — cualquier producto puede
       // llevar cualquiera de estos toppings, esté o no asociado en producto_toppings.
@@ -1177,24 +1190,30 @@ export default function Ventas() {
                 {/* Tasa */}
                 {usaBs && (
                   <div style={{ marginBottom: 14 }}>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 6 }}>TASA (BS/USD)</div>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 6 }}>TASA DEL BOLÍVAR (pesos por 1 Bs)</div>
                     <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-                      {tasas.filter(t => t.moneda === 'BS').slice(0, 2).map((t, i) => (
-                        <button key={i} onClick={() => setTasa(t.tasa_por_usd)} style={{
+                      {[...new Set(tasas.filter(t => t.moneda === 'COP_BS').map(t => Number(t.tasa_por_usd).toFixed(2)))].slice(0, 3).map((valor, i) => (
+                        <button key={valor} onClick={() => setPesosPorBs(valor)} style={{
                           padding: '4px 10px', borderRadius: 20, border: '2px solid',
-                          borderColor: parseFloat(tasa) === parseFloat(t.tasa_por_usd) ? 'var(--verde)' : '#E0E0E0',
-                          background: parseFloat(tasa) === parseFloat(t.tasa_por_usd) ? '#E8F5E9' : '#fff',
-                          color: parseFloat(tasa) === parseFloat(t.tasa_por_usd) ? 'var(--verde)' : 'var(--texto-suave)',
+                          borderColor: parseFloat(pesosPorBs) === parseFloat(valor) ? 'var(--verde)' : '#E0E0E0',
+                          background: parseFloat(pesosPorBs) === parseFloat(valor) ? '#E8F5E9' : '#fff',
+                          color: parseFloat(pesosPorBs) === parseFloat(valor) ? 'var(--verde)' : 'var(--texto-suave)',
                           fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.74rem', cursor: 'pointer'
                         }}>
-                          {parseFloat(t.tasa_por_usd).toLocaleString()} {i === 0 ? '⭐' : ''}
+                          {fmtTasaBs(valor)} {i === 0 ? '⭐' : ''}
                         </button>
                       ))}
                     </div>
-                    <input className="input-mm" type="number" step="0.01"
-                      placeholder={`Tasa manual...`} value={tasa}
-                      onChange={e => setTasa(e.target.value)}
+                    <input className="input-mm" type="number" step="0.01" min="0" inputMode="decimal"
+                      placeholder="Ej: 2.85" value={pesosPorBs}
+                      aria-label="Tasa del bolívar en pesos"
+                      onChange={e => setPesosPorBs(e.target.value)}
                       style={{ fontSize: '0.85rem', padding: '10px 14px' }} />
+                    {parseFloat(pesosPorBs) > 0 && (
+                      <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)', marginTop: 4 }}>
+                        1 Bs = {fmtTasaBs(pesosPorBs)} pesos · {Number(1000).toLocaleString('es-CO')} pesos = Bs. {fmtTasaBs(1000 / parseFloat(pesosPorBs))}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1649,7 +1668,7 @@ export default function Ventas() {
                 { label: 'Tipo pago', valor: unir(ventaDetalle.tipo_pago, ventaDetalle.tipo_pago_2) },
                 { label: 'Moneda', valor: unir(ventaDetalle.moneda_pago, ventaDetalle.moneda_pago_2) },
                 { label: 'Banco', valor: unir(ventaDetalle.nombre_banco, ventaDetalle.nombre_banco_2) || '—' },
-                { label: 'Tasa usada', valor: ventaDetalle.tasa_cambio_usada ? parseFloat(ventaDetalle.tasa_cambio_usada).toLocaleString() : '—' },
+                { label: 'Tasa usada', valor: pesosPorBsDeVenta(ventaDetalle) ? `1 Bs = ${fmtTasaBs(pesosPorBsDeVenta(ventaDetalle))} pesos` : ventaDetalle.tasa_cambio_usada ? parseFloat(ventaDetalle.tasa_cambio_usada).toLocaleString() : '—' },
               ].map(d => (
                 <div key={d.label} style={{ background: 'var(--crema)', borderRadius: 10, padding: '10px 14px' }}>
                   <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)', fontWeight: 600 }}>{d.label.toUpperCase()}</div>
