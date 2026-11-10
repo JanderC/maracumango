@@ -5,6 +5,9 @@ const MONEDAS = ['COP', 'USD', 'BS'];
 const NOMBRE = { COP: 'Pesos (COP)', USD: 'Dólares (USD)', BS: 'Bolívares (BS)' };
 const SIMBOLO = { COP: 'COP$', USD: '$', BS: 'Bs.' };
 
+// Ventas en efectivo + sobrante (o menos el faltante) de una moneda
+const totalVenta = (d) => Math.round((Number(d?.ventas_efectivo || 0) + Number(d?.diferencia || 0)) * 100) / 100;
+
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const monto = (m, v) => {
   const n = Number(v || 0);
@@ -36,6 +39,7 @@ export const htmlReporteCierre = (sesion) => {
     ['= Efectivo esperado', (m, d) => `<strong>${monto(m, d.esperado)}</strong>`, 'total'],
     ['Efectivo contado', (m, d) => (d.contado === null || d.contado === undefined ? '—' : monto(m, d.contado))],
     ['Diferencia', (m, d) => diferencia(m, d), 'total'],
+    ['Total venta (efectivo + sobrante)', (m, d) => `<strong>${monto(m, totalVenta(d))}</strong>`, 'total'],
     ['Transferencias (no entran al cajón)', (m, d) => `${monto(m, d.transferencias)} <small>(${d.cantidad_transferencias})</small>`]
   ].map(([label, celda, clase]) =>
     `<tr class="${clase || ''}"><td>${label}</td>${MONEDAS.map(m => `<td class="num">${celda(m, sesion.monedas[m])}</td>`).join('')}</tr>`
@@ -95,7 +99,7 @@ export const htmlReporteCierre = (sesion) => {
     <div><b>Apertura</b>${fechaHora(sesion.abierta_en)}<br>${esc(sesion.abierta_por || '—')}</div>
     <div><b>Cierre</b>${cerrada ? `${fechaHora(sesion.cerrada_en)}<br>${esc(sesion.cerrada_por || '—')}` : 'Caja aún abierta'}</div>
     <div><b>Ventas</b>${v.cantidad ?? 0} válidas${v.anuladas ? `<br>${v.anuladas} anuladas` : ''}</div>
-    <div><b>Total vendido (equivalente)</b>${monto('COP', v.total_cop)}<br>${monto('USD', v.total_usd)}</div>
+    <div><b>Total venta (efectivo + sobrante)</b>${MONEDAS.filter(m => m === 'COP' || totalVenta(sesion.monedas[m]) !== 0).map(m => monto(m, totalVenta(sesion.monedas[m]))).join('<br>')}</div>
   </div>
 
   ${sesion.correcciones?.length ? `<div class="notas" style="margin-top:10px;border-color:#90CAF9;background:#F5FAFF">

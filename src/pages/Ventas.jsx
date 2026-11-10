@@ -132,11 +132,12 @@ const CarpetaCard = ({ carpeta, onClick }) => (
   </div>
 );
 
-/* ─── Ordenar carpetas: arrastrar y soltar (o flechas) y luego "Guardar orden" ─── */
-const OrdenarCarpetas = ({ carpetas, titulo, guardando, onGuardar, onCancelar }) => {
-  const [lista, setLista] = useState(carpetas);
-  const [arrastrando, setArrastrando] = useState(null); // índice de la carpeta que se está moviendo
-  const cambio = lista.some((c, i) => c.id !== carpetas[i]?.id);
+/* ─── Ordenar un nivel (carpetas, subcarpetas y productos): arrastrar o flechas, y "Guardar orden" ─── */
+const OrdenarCarpetas = ({ items, titulo, guardando, onGuardar, onCancelar }) => {
+  const [lista, setLista] = useState(items);
+  const [arrastrando, setArrastrando] = useState(null); // índice del elemento que se está moviendo
+  const clave = (x) => `${x.tipo}-${x.data.id}`;
+  const cambio = lista.some((x, i) => clave(x) !== (items[i] && clave(items[i])));
   const mover = (de, a) => {
     if (a < 0 || a >= lista.length || de === a) return;
     setLista(l => { const n = [...l]; const [x] = n.splice(de, 1); n.splice(a, 0, x); return n; });
@@ -148,34 +149,41 @@ const OrdenarCarpetas = ({ carpetas, titulo, guardando, onGuardar, onCancelar })
   return (
     <div>
       <div style={{ background: '#FFF3E0', border: '1px dashed var(--naranja)', borderRadius: 12, padding: '10px 14px', marginBottom: 14, fontSize: '0.82rem', color: '#E65100' }}>
-        <strong>Ordenando carpetas{titulo ? ` de "${titulo}"` : ''}.</strong> Arrastra cada carpeta al lugar que quieras (o usa las flechas ◀ ▶) y toca <strong>Guardar orden</strong>.
+        <strong>Ordenando {titulo ? `"${titulo}"` : 'la pantalla principal'}.</strong> Arrastra cada carpeta o producto al lugar que quieras (o usa las flechas ◀ ▶) y toca <strong>Guardar orden</strong>.
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
-        {lista.map((c, i) => (
-          <div key={c.id} draggable
-            onDragStart={e => { setArrastrando(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(c.id)); }}
-            onDragOver={e => { e.preventDefault(); if (arrastrando !== null && arrastrando !== i) { mover(arrastrando, i); setArrastrando(i); } }}
-            onDrop={e => e.preventDefault()}
-            onDragEnd={() => setArrastrando(null)}
-            style={{
-              background: '#fff', borderRadius: 14, overflow: 'hidden', cursor: 'grab', userSelect: 'none',
-              border: `2px dashed ${arrastrando === i ? 'var(--naranja)' : '#CE93D8'}`, opacity: arrastrando === i ? 0.45 : 1,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'opacity 0.15s'
-            }}>
-            <div style={{ height: 76, background: 'var(--crema)', position: 'relative', overflow: 'hidden' }}>
-              {c.imagen_url
-                ? <img src={c.imagen_url} alt={c.nombre} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} />
-                : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>📁</div>}
-              <span style={{ position: 'absolute', top: 6, left: 6, background: 'var(--naranja)', color: '#fff', borderRadius: 20, padding: '2px 9px', fontSize: '0.72rem', fontWeight: 800 }}>{i + 1}</span>
-              <span style={{ position: 'absolute', top: 6, right: 8, color: '#6A1B9A', fontSize: '1rem' }} title="Arrastrar">⠿</span>
+        {lista.map((x, i) => {
+          const c = x.data;
+          const esCarpeta = x.tipo === 'carpeta';
+          return (
+            <div key={clave(x)} draggable
+              onDragStart={e => { setArrastrando(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', clave(x)); }}
+              onDragOver={e => { e.preventDefault(); if (arrastrando !== null && arrastrando !== i) { mover(arrastrando, i); setArrastrando(i); } }}
+              onDrop={e => e.preventDefault()}
+              onDragEnd={() => setArrastrando(null)}
+              style={{
+                background: '#fff', borderRadius: 14, overflow: 'hidden', cursor: 'grab', userSelect: 'none',
+                border: `2px dashed ${arrastrando === i ? 'var(--naranja)' : esCarpeta ? '#CE93D8' : '#A5D6A7'}`, opacity: arrastrando === i ? 0.45 : 1,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)', transition: 'opacity 0.15s'
+              }}>
+              <div style={{ height: 76, background: 'var(--crema)', position: 'relative', overflow: 'hidden' }}>
+                {c.imagen_url
+                  ? <img src={c.imagen_url} alt={c.nombre} draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} />
+                  : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>{esCarpeta ? '📁' : '🥤'}</div>}
+                <span style={{ position: 'absolute', top: 6, left: 6, background: 'var(--naranja)', color: '#fff', borderRadius: 20, padding: '2px 9px', fontSize: '0.72rem', fontWeight: 800 }}>{i + 1}</span>
+                <span style={{ position: 'absolute', bottom: 6, left: 6, background: esCarpeta ? '#6A1B9A' : 'var(--verde)', color: '#fff', borderRadius: 20, padding: '1px 8px', fontSize: '0.62rem', fontWeight: 700 }}>
+                  {esCarpeta ? '📁 Carpeta' : `$${Number(c.precio_final_cop || 0).toLocaleString('es-CO')}`}
+                </span>
+                <span style={{ position: 'absolute', top: 6, right: 8, color: '#6A1B9A', fontSize: '1rem' }} title="Arrastrar">⠿</span>
+              </div>
+              <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button type="button" onClick={() => mover(i, i - 1)} disabled={i === 0} style={flecha(i > 0)} aria-label={`Mover ${c.nombre} antes`}>◀</button>
+                <div style={{ flex: 1, fontWeight: 700, fontSize: '0.78rem', lineHeight: 1.2, textAlign: 'center' }}>{c.nombre}</div>
+                <button type="button" onClick={() => mover(i, i + 1)} disabled={i === lista.length - 1} style={flecha(i < lista.length - 1)} aria-label={`Mover ${c.nombre} después`}>▶</button>
+              </div>
             </div>
-            <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <button type="button" onClick={() => mover(i, i - 1)} disabled={i === 0} style={flecha(i > 0)} aria-label={`Mover ${c.nombre} antes`}>◀</button>
-              <div style={{ flex: 1, fontWeight: 700, fontSize: '0.78rem', lineHeight: 1.2, textAlign: 'center' }}>{c.nombre}</div>
-              <button type="button" onClick={() => mover(i, i + 1)} disabled={i === lista.length - 1} style={flecha(i < lista.length - 1)} aria-label={`Mover ${c.nombre} después`}>▶</button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <button type="button" onClick={onCancelar} disabled={guardando} style={{
@@ -839,30 +847,6 @@ export default function Ventas() {
   // 0 cae al final, ordenado alfabéticamente entre sí.
   const clavePrioridad = (n) => (n && n > 0 ? n : Infinity);
 
-  // Carpetas del nivel que se está viendo, en el orden en que aparecen en pantalla
-  const ordenarPorPrioridad = (lista) => [...lista].sort((a, b) =>
-    clavePrioridad(Number(a.orden) || 0) - clavePrioridad(Number(b.orden) || 0) || a.nombre.localeCompare(b.nombre));
-  const carpetasDelNivel = ordenarPorPrioridad(carpetaActiva ? (carpetaActiva.subcarpetas || []) : carpetas);
-
-  // Guarda el nuevo orden (1, 2, 3…) de las carpetas del nivel actual
-  const guardarOrdenCarpetas = async (lista) => {
-    const orden = lista.map((c, i) => ({ id: c.id, orden: i + 1 }));
-    const nuevo = Object.fromEntries(orden.map(o => [o.id, o.orden]));
-    setGuardandoOrden(true);
-    try {
-      await API.patch('/carpetas/reordenar/carpetas', { orden });
-      if (carpetaActiva) {
-        setCarpetaActiva(ca => ({ ...ca, subcarpetas: (ca.subcarpetas || []).map(c => (nuevo[c.id] ? { ...c, orden: nuevo[c.id] } : c)) }));
-      } else {
-        setCarpetas(cs => cs.map(c => (nuevo[c.id] ? { ...c, orden: nuevo[c.id] } : c)));
-      }
-      setOrdenandoCarpetas(false);
-      toast.success('Orden de carpetas guardado');
-    } catch (err) {
-      toast.error(err.response?.data?.mensaje || 'No se pudo guardar el orden');
-    } finally { setGuardandoOrden(false); }
-  };
-
   const combinarYOrdenar = (listaCarpetas, listaProductos) => {
     const items = [
       ...listaCarpetas.map(c => ({ tipo: 'carpeta', data: c, orden: Number(c.orden) || 0, nombre: c.nombre })),
@@ -870,6 +854,38 @@ export default function Ventas() {
     ];
     items.sort((a, b) => clavePrioridad(a.orden) - clavePrioridad(b.orden) || a.nombre.localeCompare(b.nombre));
     return items;
+  };
+
+  // Todo lo que se ve en el nivel actual (pantalla principal o dentro de una carpeta, a cualquier profundidad)
+  const itemsDelNivel = carpetaActiva
+    ? combinarYOrdenar(carpetaActiva.subcarpetas || [], carpetaActiva.productos || [])
+    : combinarYOrdenar(carpetas, productos);
+
+  // Guarda el nuevo orden (1, 2, 3…) de carpetas y productos del nivel actual
+  const guardarOrdenCarpetas = async (lista) => {
+    const conOrden = lista.map((x, i) => ({ tipo: x.tipo, id: x.data.id, orden: i + 1 }));
+    const deCarpetas = conOrden.filter(x => x.tipo === 'carpeta').map(({ id, orden }) => ({ id, orden }));
+    const deProductos = conOrden.filter(x => x.tipo === 'producto').map(({ id, orden }) => ({ id, orden }));
+    const nuevo = (tipo) => Object.fromEntries(conOrden.filter(x => x.tipo === tipo).map(x => [x.id, x.orden]));
+    const aplicar = (lista2, mapa) => (lista2 || []).map(c => (mapa[c.id] ? { ...c, orden: mapa[c.id] } : c));
+    setGuardandoOrden(true);
+    try {
+      await Promise.all([
+        deCarpetas.length ? API.patch('/carpetas/reordenar/carpetas', { orden: deCarpetas }) : null,
+        deProductos.length ? API.patch('/carpetas/reordenar/productos', { orden: deProductos }) : null
+      ]);
+      const nc = nuevo('carpeta'), np = nuevo('producto');
+      if (carpetaActiva) {
+        setCarpetaActiva(ca => ({ ...ca, subcarpetas: aplicar(ca.subcarpetas, nc), productos: aplicar(ca.productos, np) }));
+      } else {
+        setCarpetas(cs => aplicar(cs, nc));
+        setProductos(ps => aplicar(ps, np));
+      }
+      setOrdenandoCarpetas(false);
+      toast.success('Orden guardado');
+    } catch (err) {
+      toast.error(err.response?.data?.mensaje || 'No se pudo guardar el orden');
+    } finally { setGuardandoOrden(false); }
   };
 
   /* ════ RENDER ════ */
@@ -926,13 +942,13 @@ export default function Ventas() {
                 onChange={e => setBusqueda(e.target.value)} style={{ paddingLeft: 40 }} />
             </div>
 
-            {esAdmin && !cargandoPOS && !ordenandoCarpetas && !busqueda && !catActiva && carpetasDelNivel.length > 1 && (
+            {esAdmin && !cargandoPOS && !ordenandoCarpetas && !busqueda && !catActiva && itemsDelNivel.length > 1 && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -6, marginBottom: 10 }}>
                 <button type="button" onClick={() => setOrdenandoCarpetas(true)} style={{
                   display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 10,
                   border: '1px dashed #6A1B9A', background: '#F3E5F5', color: '#6A1B9A',
                   fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.76rem', cursor: 'pointer'
-                }}>⠿ Ordenar carpetas</button>
+                }}>⠿ Ordenar</button>
               </div>
             )}
 
@@ -944,7 +960,7 @@ export default function Ventas() {
             ) : ordenandoCarpetas ? (
               <OrdenarCarpetas
                 key={carpetaActiva?.id || 'raiz'}
-                carpetas={carpetasDelNivel}
+                items={itemsDelNivel}
                 titulo={carpetaActiva?.nombre}
                 guardando={guardandoOrden}
                 onGuardar={guardarOrdenCarpetas}
