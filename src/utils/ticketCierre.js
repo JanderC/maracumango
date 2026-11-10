@@ -63,10 +63,12 @@ export const lineasTicketCierre = (sesion) => {
   const v = sesion.ventas || {};
   add(filaTicket('Ventas validas', String(v.cantidad ?? 0)), 'negrita');
   if (v.anuladas) add(filaTicket('Ventas anuladas', String(v.anuladas)));
-  // Total venta = ventas cobradas en efectivo + sobrante del cierre (un faltante resta)
+  // Venta total = ventas cobradas en efectivo + sobrante del cierre (un faltante resta). Va resaltada.
+  add('='.repeat(ANCHO));
   MONEDAS.filter(m => m === 'COP' || totalVenta(sesion.monedas[m]) !== 0).forEach(m => {
-    add(filaTicket(`TOTAL VENTA ${m}`, montoTicket(m, totalVenta(sesion.monedas[m]))), 'negrita');
+    add(filaTicket(`VENTA TOTAL ${m}`, montoTicket(m, totalVenta(sesion.monedas[m]))), 'destacado');
   });
+  add('='.repeat(ANCHO));
 
   MONEDAS.filter(m => monedaActiva(m, sesion.monedas[m])).forEach(m => {
     const d = sesion.monedas[m];
@@ -140,6 +142,7 @@ export const construirTicketCierre = (sesion) => {
   lineasTicketCierre(sesion).forEach(({ t, f }) => {
     if (f === 'titulo') { raw([ESC, 0x61, 0x01, ESC, 0x21, 0x30]); texto(t + '\n'); raw([ESC, 0x21, 0x00, ESC, 0x61, 0x00]); return; }
     if (f === 'centro-negrita') { raw([ESC, 0x61, 0x01, ESC, 0x21, 0x18]); texto(t + '\n'); raw([ESC, 0x21, 0x00, ESC, 0x61, 0x00]); return; }
+    if (f === 'destacado') { raw([ESC, 0x21, 0x18]); texto(t + '\n'); raw([ESC, 0x21, 0x00]); return; } // doble alto + negrita
     if (f === 'negrita') { raw([ESC, 0x21, 0x08]); texto(t + '\n'); raw([ESC, 0x21, 0x00]); return; }
     texto(t + '\n');
   });
