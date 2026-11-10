@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -34,8 +33,8 @@ const menuVendedor = [
 
 const menuPorRol = { admin: menuAdmin, vendedor: menuVendedor };
 
-export default function Sidebar({ mobileOpen, setMobileOpen }) {
-  const [expandido, setExpandido] = useState(false);
+// expandido lo controla el Layout para que el contenido se corra junto con el sidebar
+export default function Sidebar({ mobileOpen, setMobileOpen, expandido, setExpandido }) {
   const { usuario, logout } = useAuth();
   const navigate = useNavigate();
   const menu = menuPorRol[usuario?.rol] || menuCliente;

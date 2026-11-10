@@ -92,16 +92,16 @@ export default function Dashboard() {
 
   const obtenerFechas = () => {
     const hoy = new Date();
-    const fin = hoy.toISOString().split('T')[0];
+    const fin = hoy.toLocaleDateString('en-CA');
     let inicio;
     if (periodo === 'hoy') {
       inicio = fin;
     } else if (periodo === 'semana') {
       const d = new Date(hoy); d.setDate(d.getDate() - 7);
-      inicio = d.toISOString().split('T')[0];
+      inicio = d.toLocaleDateString('en-CA');
     } else {
       const d = new Date(hoy); d.setDate(1);
-      inicio = d.toISOString().split('T')[0];
+      inicio = d.toLocaleDateString('en-CA');
     }
     return { inicio, fin };
   };

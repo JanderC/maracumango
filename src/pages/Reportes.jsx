@@ -37,8 +37,8 @@ export default function Reportes() {
   const [cargando, setCargando] = useState(true);
   const [exportando, setExportando] = useState('');
   const [filtros, setFiltros] = useState({
-    fecha_inicio: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-    fecha_fin: new Date().toISOString().split('T')[0]
+    fecha_inicio: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString('en-CA'),
+    fecha_fin: new Date().toLocaleDateString('en-CA')
   });
 
   const cargar = async () => {
@@ -152,18 +152,18 @@ useEffect(() => { cargar(); }, []);
           {/* Accesos rápidos */}
           <div style={{ display: 'flex', gap: 6 }}>
             {[
-              { label: 'Hoy', fn: () => { const h = new Date().toISOString().split('T')[0]; setFiltros({ fecha_inicio: h, fecha_fin: h }); } },
+              { label: 'Hoy', fn: () => { const h = new Date().toLocaleDateString('en-CA'); setFiltros({ fecha_inicio: h, fecha_fin: h }); } },
               {
                 label: 'Semana', fn: () => {
                   const h = new Date(); const i = new Date(h); i.setDate(i.getDate() - 7);
-                  setFiltros({ fecha_inicio: i.toISOString().split('T')[0], fecha_fin: h.toISOString().split('T')[0] });
+                  setFiltros({ fecha_inicio: i.toLocaleDateString('en-CA'), fecha_fin: h.toLocaleDateString('en-CA') });
                 }
               },
               {
                 label: 'Mes', fn: () => {
                   const h = new Date();
                   const i = new Date(h.getFullYear(), h.getMonth(), 1);
-                  setFiltros({ fecha_inicio: i.toISOString().split('T')[0], fecha_fin: h.toISOString().split('T')[0] });
+                  setFiltros({ fecha_inicio: i.toLocaleDateString('en-CA'), fecha_fin: h.toLocaleDateString('en-CA') });
                 }
               }
             ].map(btn => (

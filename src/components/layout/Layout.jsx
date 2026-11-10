@@ -5,15 +5,17 @@ import Navbar from './Navbar';
 
 export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [expandido, setExpandido] = useState(false); // sidebar de escritorio abierto (hover)
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--crema)' }}>
-      <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+      <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} expandido={expandido} setExpandido={setExpandido} />
       <Navbar setMobileOpen={setMobileOpen} />
 
       {/* Contenido principal */}
       <main style={{
-        marginLeft: 'var(--sidebar-rail)',
+        // El contenido se corre cuando el sidebar se abre, en vez de quedar tapado
+        marginLeft: expandido ? 'var(--sidebar-width)' : 'var(--sidebar-rail)',
         paddingTop: 64,
         minHeight: '100vh',
         transition: 'margin-left 0.3s ease'
