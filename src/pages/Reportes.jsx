@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import API from '../api/axios';
 import { toast } from 'react-toastify';
+import { imprimirReporteVentas } from '../utils/reporteVentas';
 import {
   RiFileExcel2Line, RiFilePdfLine, RiRefreshLine,
   RiMoneyDollarCircleLine, RiShoppingCartLine,
-  RiTrophyLine, RiBarChartLine, RiArchiveLine
+  RiTrophyLine, RiBarChartLine, RiArchiveLine, RiPrinterLine
 } from 'react-icons/ri';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -33,6 +34,8 @@ const StatCard = ({ icon, label, valor, sub, color }) => (
 export default function Reportes() {
   const [resumen, setResumen] = useState(null);
   const [ventasDia, setVentasDia] = useState([]);
+  const [ventasDiaTodas, setVentasDiaTodas] = useState([]); // todos los días del período (para imprimir)
+  const [periodoCargado, setPeriodoCargado] = useState(null); // fechas de los datos que se están mostrando
   const [inventario, setInventario] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [exportando, setExportando] = useState('');
@@ -52,6 +55,8 @@ export default function Reportes() {
       ]);
       setResumen(r1.data);
       setVentasDia(r2.data.ventas_por_dia.slice(0, 30).reverse());
+      setVentasDiaTodas(r2.data.ventas_por_dia);
+      setPeriodoCargado({ ...filtros });
       setInventario(r3.data.inventario);
     } catch { toast.error('Error cargando reportes'); }
     finally { setCargando(false); }
@@ -93,6 +98,21 @@ useEffect(() => { cargar(); }, []);
           <p style={{ color: 'var(--texto-suave)', fontSize: '0.85rem' }}>Análisis de ventas, ganancias e inventario</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => imprimirReporteVentas({ periodo: periodoCargado, resumen, ventasPorDia: ventasDiaTodas, inventario })}
+            disabled={cargando || !resumen || !periodoCargado}
+            title="Imprimir en hoja carta (impresora normal)"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '9px 18px', borderRadius: 12, border: 'none',
+              background: 'var(--verde)', color: '#fff',
+              fontFamily: 'Poppins', fontWeight: 600, fontSize: '0.85rem',
+              cursor: cargando || !resumen ? 'not-allowed' : 'pointer', opacity: cargando || !resumen ? 0.6 : 1
+            }}
+          >
+            <RiPrinterLine />
+            Imprimir
+          </button>
           <button
             onClick={() => exportar('excel')}
             disabled={exportando === 'excel'}

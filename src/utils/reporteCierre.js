@@ -126,15 +126,15 @@ export const htmlReporteCierre = (sesion) => {
 </body></html>`;
 };
 
-// Abre el diálogo de impresión del navegador con el reporte en hoja carta
-export const imprimirCierreCarta = (sesion) => {
+// Manda un documento HTML al diálogo de impresión del navegador desde un iframe oculto
+export const imprimirHtml = (html) => {
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
   iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
   document.body.appendChild(iframe);
   const doc = iframe.contentWindow.document;
   doc.open();
-  doc.write(htmlReporteCierre(sesion));
+  doc.write(html);
   doc.close();
   const quitar = () => setTimeout(() => iframe.remove(), 1000);
   iframe.contentWindow.onafterprint = quitar;
@@ -144,3 +144,6 @@ export const imprimirCierreCarta = (sesion) => {
     setTimeout(() => iframe.isConnected && iframe.remove(), 60000); // por si el navegador no avisa onafterprint
   }, 250);
 };
+
+// Abre el diálogo de impresión del navegador con el reporte en hoja carta
+export const imprimirCierreCarta = (sesion) => imprimirHtml(htmlReporteCierre(sesion));
