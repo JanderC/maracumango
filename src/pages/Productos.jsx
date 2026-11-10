@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import API from '../api/axios';
+import { reducirImagen } from '../utils/reducirImagen';
 import { toast } from 'react-toastify';
 import {
   RiAddLine, RiEditLine, RiDeleteBinLine,
@@ -212,7 +213,7 @@ export default function Productos() {
           fd.append(k, form[k]);
         }
       });
-      if (imagen) fd.append('imagen', imagen);
+      if (imagen) fd.append('imagen', await reducirImagen(imagen));
 
       let productoId;
       if (productoSel) {
@@ -310,7 +311,7 @@ export default function Productos() {
       fd.append('orden', carpetaForm.orden || 0);
       // La subcarpeta se crea dentro del nivel donde estás parado en el modal
       if (nivelActualId) fd.append('carpeta_padre_id', nivelActualId);
-      if (carpetaImagen) fd.append('imagen', carpetaImagen);
+      if (carpetaImagen) fd.append('imagen', await reducirImagen(carpetaImagen));
 
       if (carpetaSel) {
         await API.put(`/carpetas/${carpetaSel.id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
