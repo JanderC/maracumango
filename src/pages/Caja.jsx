@@ -181,6 +181,11 @@ const TarjetaMoneda = ({ moneda, datos }) => {
       <div style={{ padding: '12px 20px 16px' }}>
         <FilaMonto moneda={moneda} label="Fondo de apertura" valor={datos.apertura} />
         <FilaMonto moneda={moneda} label={`Ventas en efectivo (${datos.cantidad_efectivo})`} valor={datos.ventas_efectivo} signo="+ " color="#2E7D32" />
+        {Number(datos.vueltos_otra_moneda || 0) !== 0 && (
+          <FilaMonto moneda={moneda} label={`Vueltos en otra moneda (${datos.cantidad_vueltos_otra_moneda})`}
+            valor={Math.abs(datos.vueltos_otra_moneda)} signo={datos.vueltos_otra_moneda > 0 ? '+ ' : '− '}
+            color={datos.vueltos_otra_moneda > 0 ? '#2E7D32' : '#C62828'} />
+        )}
         <FilaMonto moneda={moneda} label="Ingresos" valor={datos.ingresos} signo="+ " color="#2E7D32" />
         <FilaMonto moneda={moneda} label="Egresos" valor={datos.egresos} signo="− " color="#C62828" />
         {hayContado && (

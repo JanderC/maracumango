@@ -32,9 +32,14 @@ export const htmlReporteCierre = (sesion) => {
   const v = sesion.ventas || {};
   const cerrada = sesion.estado === 'cerrada';
 
+  const hayVueltosCruzados = MONEDAS.some(m => Number(sesion.monedas[m]?.vueltos_otra_moneda || 0) !== 0);
   const filasMoneda = [
     ['Fondo de apertura', (m, d) => monto(m, d.apertura)],
     ['+ Ventas en efectivo', (m, d) => `${monto(m, d.ventas_efectivo)} <small>(${d.cantidad_efectivo})</small>`],
+    ...(hayVueltosCruzados ? [['± Vueltos en otra moneda', (m, d) => {
+      const n = Number(d.vueltos_otra_moneda || 0);
+      return n === 0 ? monto(m, 0) : `${n > 0 ? '+' : '−'} ${monto(m, Math.abs(n))}`;
+    }]] : []),
     ['+ Ingresos', (m, d) => monto(m, d.ingresos)],
     ['− Egresos', (m, d) => monto(m, d.egresos)],
     ['= Efectivo esperado', (m, d) => `<strong>${monto(m, d.esperado)}</strong>`, 'total'],
@@ -58,7 +63,10 @@ export const htmlReporteCierre = (sesion) => {
       <tr class="${x.anulada ? 'anulada' : ''}">
         <td>${i === 0 ? `#${x.id}` : ''}</td><td>${i === 0 ? hora(x.creado_en) : ''}</td>
         <td>${p.m}</td><td>${formaPago(p.t)}${pagos.length > 1 ? ` <small>(pago ${i + 1})</small>` : ''}${x.anulada && i === 0 ? ' <small>ANULADA</small>' : ''}</td>
-        <td class="num">${monto(p.m, p.x)}</td></tr>`).join('');
+        <td class="num">${monto(p.m, p.x)}</td></tr>`).join('') + (x.vuelto_moneda ? `
+      <tr class="${x.anulada ? 'anulada' : ''}"><td></td><td></td><td>${x.vuelto_moneda}</td>
+        <td><small>Vuelto entregado en otra moneda (= ${monto(x.moneda_pago, x.vuelto)})</small></td>
+        <td class="num">− ${monto(x.vuelto_moneda, x.vuelto_entregado)}</td></tr>` : '');
   }).join('');
 
   const filasProductos = (sesion.productos_vendidos || []).map(p =>

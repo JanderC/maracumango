@@ -302,8 +302,14 @@ const construirTicketESCPOS = (venta) => {
   if (venta.tipo_pago === 'efectivo' && venta.monto_recibido !== null && venta.monto_recibido !== undefined) {
     texto(`Pago con: ${simboloPago} ${monto(venta.monto_recibido)}\n`);
     raw([ESC, 0x21, 0x10]);  // negrita
-    texto(`VUELTO: ${simboloPago} ${monto(venta.vuelto)}\n`);
-    raw([ESC, 0x21, 0x00]);
+    if (venta.vuelto_moneda) { // vuelto entregado en otra moneda
+      texto(`VUELTO: ${simboloMoneda(venta.vuelto_moneda)} ${monto(venta.vuelto_entregado)}\n`);
+      raw([ESC, 0x21, 0x00]);
+      texto(`  (equivale a ${simboloPago} ${monto(venta.vuelto)})\n`);
+    } else {
+      texto(`VUELTO: ${simboloPago} ${monto(venta.vuelto)}\n`);
+      raw([ESC, 0x21, 0x00]);
+    }
   }
 
   if (venta.notas) {
@@ -427,8 +433,17 @@ const ModalTicket = ({ show, venta, onClose, onImprimir }) => {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem' }}>
               <span style={{ fontWeight: 700, color: '#1B5E20' }}>Vuelto a entregar</span>
-              <span style={{ fontWeight: 800, color: '#1B5E20' }}>{simbolo} {Number(venta.vuelto).toLocaleString()}</span>
+              <span style={{ fontWeight: 800, color: '#1B5E20' }}>
+                {venta.vuelto_moneda
+                  ? `${simboloMoneda(venta.vuelto_moneda)} ${Number(venta.vuelto_entregado).toLocaleString()}`
+                  : `${simbolo} ${Number(venta.vuelto).toLocaleString()}`}
+              </span>
             </div>
+            {venta.vuelto_moneda && (
+              <div style={{ textAlign: 'right', fontSize: '0.75rem', color: 'var(--texto-suave)', marginTop: 2 }}>
+                equivale a {simbolo} {Number(venta.vuelto).toLocaleString()}
+              </div>
+            )}
           </div>
         )}
         {venta.notas && (
@@ -495,6 +510,9 @@ export default function Ventas() {
     ? String(parseFloat(tasaCop.tasa_por_usd) / parseFloat(pesosPorBs)) : '';
   const [tipoPago, setTipoPago] = useState('efectivo');
   const [montoRecibido, setMontoRecibido] = useState('');
+  // Moneda en que se entrega el vuelto ('' = la misma del pago). Ej: paga en dólares y el vuelto va en pesos
+  const [vueltoMoneda, setVueltoMoneda] = useState('');
+  useEffect(() => { setVueltoMoneda(''); }, [moneda]);
   const [cuentaId, setCuentaId] = useState('');
   /* Pago dividido: la parte 1 usa moneda / tipoPago / cuentaId de arriba; la parte 2 usa estos */
   const [dividido, setDividido] = useState(false);
@@ -727,7 +745,8 @@ export default function Ventas() {
 
   /* ── Pago dividido: el cajero escribe un monto y el otro se calcula con las tasas ──
      Todo se cruza por COP (moneda nativa): COP ↔ USD con la tasa COP, BS ↔ USD con la tasa BS. */
-  const usaBs = moneda === 'BS' || (dividido && moneda2 === 'BS');
+  const vueltoCruzado = !dividido && tipoPago === 'efectivo' && vueltoMoneda && vueltoMoneda !== moneda ? vueltoMoneda : null;
+  const usaBs = moneda === 'BS' || (dividido && moneda2 === 'BS') || vueltoCruzado === 'BS';
   const tCop = parseFloat(tasaCop?.tasa_por_usd) || 0;
   const tBs = parseFloat(tasa) || 0;
   const aCop = (monto, m) => (m === 'COP' ? monto : m === 'USD' ? monto * tCop : tBs ? (monto / tBs) * tCop : NaN);
@@ -744,6 +763,14 @@ export default function Ventas() {
   const montoParte = (n) => (ancla === n ? montoAncla : montoOtra === null ? '' : String(montoOtra));
   const escribirParte = (n, valor) => { setAncla(n); setMontoAncla(valor); };
   const mismoPago = dividido && moneda === moneda2 && tipoPago === tipoPago2;
+  // Vuelto convertido a otra moneda (en pesos se redondea al peso, igual que en el servidor)
+  const vueltoEn = (m) => {
+    const v = vueltoCalculado();
+    if (!(v > 0) || !tCop) return null;
+    const r = deCop(aCop(v, moneda), m);
+    if (isNaN(r) || !isFinite(r)) return null;
+    return m === 'COP' ? Math.round(r) : parseFloat(r.toFixed(2));
+  };
 
   /* ── Confirmar venta ── */
   const confirmarVenta = async () => {
@@ -774,6 +801,7 @@ export default function Ventas() {
         cuenta_bancaria_id: cuentaId || null,
         tasa_cambio_usada: usaBs ? tasa : null,
         monto_recibido: !dividido && tipoPago === 'efectivo' ? montoRecibido : null,
+        vuelto_moneda: vueltoCruzado,
         pago_dividido: dividido ? {
           ancla,
           monto: montoAncla,
@@ -794,6 +822,7 @@ export default function Ventas() {
       setTipoPago('efectivo');
       setCuentaId('');
       setMontoRecibido('');
+      setVueltoMoneda('');
       setDividido(false);
       setMontoAncla('');
       setCuentaId2('');
@@ -1272,10 +1301,36 @@ export default function Ventas() {
 
                     {montoRecibido !== '' && !isNaN(parseFloat(montoRecibido)) && (
                       vueltoCalculado() >= 0 ? (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#E8F5E9', borderRadius: 10, padding: '10px 14px' }}>
-                          <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1B5E20' }}>Vuelto a entregar</span>
-                          <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#1B5E20' }}>{simbolo} {vueltoCalculado().toLocaleString()}</span>
-                        </div>
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#E8F5E9', borderRadius: 10, padding: '10px 14px' }}>
+                            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1B5E20' }}>Vuelto a entregar</span>
+                            <span style={{ fontWeight: 800, fontSize: '1.05rem', color: '#1B5E20', textAlign: 'right' }}>
+                              {vueltoCruzado
+                                ? (vueltoEn(vueltoCruzado) === null ? 'Falta la tasa' : `${simboloMoneda(vueltoCruzado)} ${vueltoEn(vueltoCruzado).toLocaleString('es-CO')}`)
+                                : `${simbolo} ${vueltoCalculado().toLocaleString()}`}
+                              {vueltoCruzado && <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--texto-suave)' }}>= {simbolo} {vueltoCalculado().toLocaleString()}</div>}
+                            </span>
+                          </div>
+                          {vueltoCalculado() > 0 && (
+                            <div style={{ marginTop: 8 }} data-testid="vuelto-moneda">
+                              <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--texto-suave)', marginBottom: 6 }}>¿EN QUÉ MONEDA ENTREGAS EL VUELTO?</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+                                {[moneda, ...['COP', 'USD', 'BS'].filter(m => m !== moneda)].map(m => {
+                                  const activo = (vueltoCruzado || moneda) === m;
+                                  return (
+                                    <button key={m} type="button" onClick={() => setVueltoMoneda(m === moneda ? '' : m)} style={{
+                                      padding: '7px 0', borderRadius: 10, border: '2px solid',
+                                      borderColor: activo ? 'var(--verde)' : '#E0E0E0',
+                                      background: activo ? '#E8F5E9' : '#fff',
+                                      color: activo ? 'var(--verde)' : 'var(--texto-suave)',
+                                      fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer'
+                                    }}>{m === 'COP' ? 'Pesos' : m === 'USD' ? 'Dólares' : 'Bolívares'}</button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#FFEBEE', borderRadius: 10, padding: '10px 14px' }}>
                           <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#C62828' }}>Falta por cobrar</span>
@@ -1690,7 +1745,16 @@ export default function Ventas() {
                 </div>
                 <div style={{ flex: 1, background: '#E8F5E9', borderRadius: 10, padding: '10px 14px' }}>
                   <div style={{ fontSize: '0.72rem', color: '#1B5E20', fontWeight: 600 }}>VUELTO</div>
-                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1B5E20' }}>{Number(ventaDetalle.vuelto).toLocaleString()}</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1B5E20' }}>
+                    {ventaDetalle.vuelto_moneda
+                      ? `${simboloMoneda(ventaDetalle.vuelto_moneda)} ${Number(ventaDetalle.vuelto_entregado).toLocaleString()}`
+                      : Number(ventaDetalle.vuelto).toLocaleString()}
+                  </div>
+                  {ventaDetalle.vuelto_moneda && (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--texto-suave)' }}>
+                      equivale a {simboloMoneda(ventaDetalle.moneda_pago)} {Number(ventaDetalle.vuelto).toLocaleString()}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

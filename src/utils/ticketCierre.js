@@ -35,7 +35,7 @@ const hora = (iso) => new Date(iso).toLocaleTimeString('es-VE', { hour: '2-digit
 
 // Solo se imprimen las monedas que tuvieron algún movimiento (pesos siempre)
 const monedaActiva = (m, d) => m === 'COP' ||
-  [d.apertura, d.ventas_efectivo, d.ingresos, d.egresos, d.transferencias, d.contado].some(x => Number(x || 0) !== 0);
+  [d.apertura, d.ventas_efectivo, d.vueltos_otra_moneda, d.ingresos, d.egresos, d.transferencias, d.contado].some(x => Number(x || 0) !== 0);
 
 export const lineasTicketCierre = (sesion) => {
   const L = []; // { t: texto, f: formato }
@@ -75,6 +75,8 @@ export const lineasTicketCierre = (sesion) => {
     add(NOMBRE[m], 'negrita');
     add(filaTicket('Fondo de apertura', montoTicket(m, d.apertura)));
     add(filaTicket(`+ Ventas efectivo (${d.cantidad_efectivo})`, montoTicket(m, d.ventas_efectivo)));
+    const vc = Number(d.vueltos_otra_moneda || 0);
+    if (vc !== 0) add(filaTicket(`${vc > 0 ? '+' : '-'} Vueltos otra moneda (${d.cantidad_vueltos_otra_moneda})`, montoTicket(m, Math.abs(vc))));
     add(filaTicket('+ Ingresos', montoTicket(m, d.ingresos)));
     add(filaTicket('- Egresos', montoTicket(m, d.egresos)));
     add(filaTicket('= EFECTIVO ESPERADO', montoTicket(m, d.esperado)), 'negrita');
@@ -98,14 +100,17 @@ export const lineasTicketCierre = (sesion) => {
   if (sesion.lista_ventas) {
     sep();
     add(`VENTAS (${sesion.lista_ventas.length})`, 'negrita');
-    add(filaTicket('#    Hora  Mon Pago', 'Total'));
+    add(filaTicket('#     Hora  Mon Pago', 'Total'));
     sesion.lista_ventas.forEach(x => {
       const pago = x.tipo_pago === 'efectivo' ? 'Efec' : 'Trans';
-      const izq = `#${String(x.id).padEnd(4)}${hora(x.creado_en)} ${x.moneda_pago.padEnd(3)} ${pago}${x.anulada ? ' ANUL' : ''}`;
+      const izq = `${('#' + x.id).padEnd(6)}${hora(x.creado_en)} ${x.moneda_pago.padEnd(3)} ${pago}${x.anulada ? ' ANUL' : ''}`;
       add(filaTicket(izq, x.anulada ? `(${montoTicket(x.moneda_pago, x.total_pagado)})` : montoTicket(x.moneda_pago, x.total_pagado)));
       if (x.moneda_pago_2) { // pago dividido: la segunda parte va en su propia línea
         const izq2 = `   + dividido ${x.moneda_pago_2.padEnd(3)} ${x.tipo_pago_2 === 'efectivo' ? 'Efec' : 'Trans'}`;
         add(filaTicket(izq2, x.anulada ? `(${montoTicket(x.moneda_pago_2, x.total_pagado_2)})` : montoTicket(x.moneda_pago_2, x.total_pagado_2)));
+      }
+      if (x.vuelto_moneda) { // vuelto entregado en otra moneda
+        add(filaTicket(`   vuelto en ${x.vuelto_moneda}`, `-${montoTicket(x.vuelto_moneda, x.vuelto_entregado)}`));
       }
     });
     if (sesion.lista_ventas.some(x => x.anulada)) add('(ANUL = anulada, no suma en caja)');
