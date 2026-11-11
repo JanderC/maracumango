@@ -141,6 +141,9 @@ const CarpetaCard = ({ carpeta, onClick }) => (
 );
 
 /* ─── Ordenar un nivel (carpetas, subcarpetas y productos): arrastrar o flechas, y "Guardar orden" ─── */
+// Dentro de una carpeta: mínimo 2 y máximo 4 tarjetas por fila (tarjetas más grandes y nombres legibles)
+const COLUMNAS_CARPETA = 'repeat(auto-fill, minmax(min(calc(50% - 6px), max(150px, calc(25% - 9px))), 1fr))';
+
 const OrdenarCarpetas = ({ items, titulo, guardando, onGuardar, onCancelar }) => {
   const [lista, setLista] = useState(items);
   const [arrastrando, setArrastrando] = useState(null); // índice del elemento que se está moviendo
@@ -159,7 +162,7 @@ const OrdenarCarpetas = ({ items, titulo, guardando, onGuardar, onCancelar }) =>
       <div style={{ background: '#FFF3E0', border: '1px dashed var(--naranja)', borderRadius: 12, padding: '10px 14px', marginBottom: 14, fontSize: '0.82rem', color: '#E65100' }}>
         <strong>Ordenando {titulo ? `"${titulo}"` : 'la pantalla principal'}.</strong> Arrastra cada carpeta o producto al lugar que quieras (o usa las flechas ◀ ▶) y toca <strong>Guardar orden</strong>.
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: titulo ? COLUMNAS_CARPETA : 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12, marginBottom: 16 }}>
         {lista.map((x, i) => {
           const c = x.data;
           const esCarpeta = x.tipo === 'carpeta';
@@ -1043,7 +1046,7 @@ export default function Ventas() {
                   ))}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: COLUMNAS_CARPETA, gap: 12 }}>
                   {combinarYOrdenar(
                     (carpetaActiva.subcarpetas || []).filter(c => c.nombre.toLowerCase().includes(busqueda.toLowerCase())),
                     carpetaActiva.productos.filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()))
