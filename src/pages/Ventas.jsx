@@ -215,33 +215,38 @@ const ModalVariantes = ({ padre, variantes, onSeleccionar, onClose }) => {
       background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16
     }}>
-      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 440, maxHeight: '85vh', overflowY: 'auto', padding: 28 }}>
+      <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 720, maxHeight: '88vh', overflowY: 'auto', padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
           <h5 style={{ fontWeight: 700, margin: 0 }}>{padre.nombre}</h5>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer' }}><RiCloseLine /></button>
         </div>
         <p style={{ fontSize: '0.82rem', color: 'var(--texto-suave)', marginBottom: 16 }}>Elige la opción que desea el cliente</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {variantes.length === 0 ? (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
-              Este producto no tiene opciones activas todavía.
-            </div>
-          ) : variantes.map(v => (
-            <button key={v.id} onClick={() => onSeleccionar(v)} style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '10px 14px', borderRadius: 12, border: '2px solid #E0E0E0',
-              background: '#fff', cursor: 'pointer', fontFamily: 'Poppins', textAlign: 'left'
-            }}>
-              <div style={{ width: 42, height: 42, borderRadius: 10, background: 'var(--crema)', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {v.imagen_url ? <img src={v.imagen_url} alt={v.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <RiImageLine style={{ color: '#BDBDBD' }} />}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{v.nombre}</div>
-                <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--verde)' }}>${Number(v.precio_final_cop).toLocaleString('es-CO')}</div>
-              </div>
-            </button>
-          ))}
-        </div>
+        {variantes.length === 0 ? (
+          <div style={{ padding: 20, textAlign: 'center', color: 'var(--texto-suave)', fontSize: '0.85rem' }}>
+            Este producto no tiene opciones activas todavía.
+          </div>
+        ) : (
+          // Cuadrícula: mínimo 2 opciones por fila (aun en pantallas angostas) y máximo 4
+          <div data-testid="grilla-variantes" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(150px, calc(50% - 6px)), 1fr))', gap: 12 }}>
+            {variantes.map(v => (
+              <button key={v.id} onClick={() => onSeleccionar(v)} style={{
+                display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden',
+                borderRadius: 14, border: '2px solid #E0E0E0', background: '#fff',
+                cursor: 'pointer', fontFamily: 'Poppins', textAlign: 'left', transition: 'border-color 0.15s, transform 0.15s'
+              }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--verde)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#E0E0E0'; e.currentTarget.style.transform = 'none'; }}>
+                <div style={{ width: '100%', height: 90, background: 'var(--crema)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  {v.imagen_url ? <img src={v.imagen_url} alt={v.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <RiImageLine style={{ color: '#BDBDBD', fontSize: 28 }} />}
+                </div>
+                <div style={{ padding: '8px 10px' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.8rem', lineHeight: 1.25 }}>{v.nombre}</div>
+                  <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--verde)', marginTop: 2 }}>${Number(v.precio_final_cop).toLocaleString('es-CO')}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

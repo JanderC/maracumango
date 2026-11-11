@@ -5,8 +5,9 @@ const MONEDAS = ['COP', 'USD', 'BS'];
 const NOMBRE = { COP: 'Pesos (COP)', USD: 'Dólares (USD)', BS: 'Bolívares (BS)' };
 const SIMBOLO = { COP: 'COP$', USD: '$', BS: 'Bs.' };
 
-// Ventas en efectivo + sobrante (o menos el faltante) de una moneda
-const totalVenta = (d) => Math.round((Number(d?.ventas_efectivo || 0) + Number(d?.diferencia || 0)) * 100) / 100;
+// Venta total del cierre, en pesos: todo lo vendido (efectivo y transferencias, en pesos,
+// bolívares y dólares, convertido a pesos) + el sobrante en pesos (un faltante resta)
+const ventaTotal = (sesion) => Math.round((Number(sesion.ventas?.total_cop || 0) + Number(sesion.monedas?.COP?.diferencia || 0)) * 100) / 100;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const monto = (m, v) => {
@@ -39,7 +40,6 @@ export const htmlReporteCierre = (sesion) => {
     ['= Efectivo esperado', (m, d) => `<strong>${monto(m, d.esperado)}</strong>`, 'total'],
     ['Efectivo contado', (m, d) => (d.contado === null || d.contado === undefined ? '—' : monto(m, d.contado))],
     ['Diferencia', (m, d) => diferencia(m, d), 'total'],
-    ['Venta total (efectivo + sobrante)', (m, d) => `<strong>${monto(m, totalVenta(d))}</strong>`, 'venta'],
     ['Transferencias (no entran al cajón)', (m, d) => `${monto(m, d.transferencias)} <small>(${d.cantidad_transferencias})</small>`]
   ].map(([label, celda, clase]) =>
     `<tr class="${clase || ''}"><td>${label}</td>${MONEDAS.map(m => `<td class="num">${celda(m, sesion.monedas[m])}</td>`).join('')}</tr>`
@@ -81,7 +81,6 @@ export const htmlReporteCierre = (sesion) => {
   td { padding: 4px 7px; border-bottom: 1px solid #E2E2E2; vertical-align: top; }
   .num, th.num { text-align: right; white-space: nowrap; }
   tr.total td { background: #FFF8E7; font-weight: bold; }
-  tr.venta td { background: #FFE0B2; font-weight: bold; font-size: 11.5pt; border-top: 2px solid #F57F17; border-bottom: 2px solid #F57F17; }
   .datos .venta-total { background: #FFF3E0; border: 2px solid #F57F17; border-radius: 6px; padding: 5px 9px; font-size: 14pt; font-weight: bold; color: #111; line-height: 1.25; }
   .datos .venta-total b { color: #E65100; font-weight: bold; }
   tr.anulada td { color: #999; text-decoration: line-through; }
@@ -102,7 +101,7 @@ export const htmlReporteCierre = (sesion) => {
     <div><b>Apertura</b>${fechaHora(sesion.abierta_en)}<br>${esc(sesion.abierta_por || '—')}</div>
     <div><b>Cierre</b>${cerrada ? `${fechaHora(sesion.cerrada_en)}<br>${esc(sesion.cerrada_por || '—')}` : 'Caja aún abierta'}</div>
     <div><b>Ventas</b>${v.cantidad ?? 0} válidas${v.anuladas ? `<br>${v.anuladas} anuladas` : ''}</div>
-    <div class="venta-total"><b>Venta total (efectivo + sobrante)</b>${MONEDAS.filter(m => m === 'COP' || totalVenta(sesion.monedas[m]) !== 0).map(m => monto(m, totalVenta(sesion.monedas[m]))).join('<br>')}</div>
+    <div class="venta-total"><b>Venta total</b>${monto('COP', ventaTotal(sesion))}</div>
   </div>
 
   ${sesion.correcciones?.length ? `<div class="notas" style="margin-top:10px;border-color:#90CAF9;background:#F5FAFF">

@@ -6,8 +6,9 @@ const MONEDAS = ['COP', 'USD', 'BS'];
 const NOMBRE = { COP: 'PESOS (COP)', USD: 'DOLARES (USD)', BS: 'BOLIVARES (BS)' };
 const SIMBOLO = { COP: 'COP$', USD: '$', BS: 'Bs.' };
 
-// Ventas en efectivo + sobrante (o menos el faltante) de una moneda
-const totalVenta = (d) => Math.round((Number(d?.ventas_efectivo || 0) + Number(d?.diferencia || 0)) * 100) / 100;
+// Venta total del cierre, en pesos: todo lo vendido (efectivo y transferencias, en pesos,
+// bolívares y dólares, convertido a pesos) + el sobrante en pesos (un faltante resta)
+const ventaTotal = (sesion) => Math.round((Number(sesion.ventas?.total_cop || 0) + Number(sesion.monedas?.COP?.diferencia || 0)) * 100) / 100;
 
 const limpiar = (s) => String(s ?? '')
   .normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -63,11 +64,9 @@ export const lineasTicketCierre = (sesion) => {
   const v = sesion.ventas || {};
   add(filaTicket('Ventas validas', String(v.cantidad ?? 0)), 'negrita');
   if (v.anuladas) add(filaTicket('Ventas anuladas', String(v.anuladas)));
-  // Venta total = ventas cobradas en efectivo + sobrante del cierre (un faltante resta). Va resaltada.
+  // Venta total resaltada (doble alto + negrita)
   add('='.repeat(ANCHO));
-  MONEDAS.filter(m => m === 'COP' || totalVenta(sesion.monedas[m]) !== 0).forEach(m => {
-    add(filaTicket(`VENTA TOTAL ${m}`, montoTicket(m, totalVenta(sesion.monedas[m]))), 'destacado');
-  });
+  add(filaTicket('VENTA TOTAL', montoTicket('COP', ventaTotal(sesion))), 'destacado');
   add('='.repeat(ANCHO));
 
   MONEDAS.filter(m => monedaActiva(m, sesion.monedas[m])).forEach(m => {
