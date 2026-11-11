@@ -310,19 +310,22 @@ export default function Productos() {
       fd.append('nombre', carpetaForm.nombre);
       fd.append('orden', carpetaForm.orden || 0);
       // La subcarpeta se crea dentro del nivel donde estás parado en el modal
-      if (nivelActualId) fd.append('carpeta_padre_id', nivelActualId);
+      if (nivelActualId && !carpetaSel) fd.append('carpeta_padre_id', nivelActualId);
       if (carpetaImagen) fd.append('imagen', await reducirImagen(carpetaImagen));
 
       if (carpetaSel) {
-        await API.put(`/carpetas/${carpetaSel.id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        const { data } = await API.put(`/carpetas/${carpetaSel.id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        // Si era la carpeta en la que estás parado, refresca su nombre/foto en la ruta de arriba
+        const c = data?.carpeta;
+        if (c) setPilaCarpetasAdmin(prev => prev.map(p => (p.id === c.id ? { id: c.id, nombre: c.nombre, orden: c.orden, imagen_url: c.imagen_url } : p)));
         toast.success('Carpeta actualizada');
       } else {
         await API.post('/carpetas', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
         toast.success(nivelActualId ? 'Subcarpeta creada' : 'Carpeta creada');
       }
       abrirCrearCarpeta();
-      await cargarNivelCarpetas(nivelActualId);
       await cargar(); // refresca también la lista plana usada en el selector del producto
+      await cargarNivelCarpetas(nivelActualId); // después de cargar(), que deja la lista en el nivel raíz
     } catch (err) {
       toast.error(err.response?.data?.mensaje || 'Error guardando la carpeta');
     } finally { setGuardandoCarpeta(false); }
@@ -341,8 +344,8 @@ export default function Productos() {
       await API.delete(`/carpetas/${id}`);
       toast.success('Carpeta eliminada');
       if (carpetaSel?.id === id) abrirCrearCarpeta();
-      await cargarNivelCarpetas(nivelActualId);
       await cargar();
+      await cargarNivelCarpetas(nivelActualId);
     } catch (err) {
       toast.error(err.response?.data?.mensaje || 'No se pudo eliminar la carpeta');
     }
@@ -350,7 +353,7 @@ export default function Productos() {
 
   // Entra a una carpeta dentro del modal de gestión para ver/crear sus subcarpetas
   const entrarSubcarpetaAdmin = async (c) => {
-    setPilaCarpetasAdmin(prev => [...prev, { id: c.id, nombre: c.nombre }]);
+    setPilaCarpetasAdmin(prev => [...prev, { id: c.id, nombre: c.nombre, orden: c.orden, imagen_url: c.imagen_url }]);
     abrirCrearCarpeta();
     await cargarNivelCarpetas(c.id);
   };
@@ -930,7 +933,25 @@ export default function Productos() {
               </button>
             </span>
           ))}
+          {pilaCarpetasAdmin.length > 0 && (
+            <button
+              onClick={() => abrirEditarCarpeta(pilaCarpetasAdmin[pilaCarpetasAdmin.length - 1])}
+              title="Cambiar la foto o el nombre de esta carpeta"
+              style={{
+                marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6,
+                background: '#E3F2FD', color: '#1565C0', border: 'none', borderRadius: 10,
+                padding: '7px 12px', fontFamily: 'Poppins', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer'
+              }}>
+              <RiEditLine /> Editar esta carpeta
+            </button>
+          )}
         </div>
+
+        {carpetaSel && (
+          <div style={{ background: '#E3F2FD', color: '#1565C0', borderRadius: 10, padding: '8px 12px', fontSize: '0.78rem', marginBottom: 10 }}>
+            ✏️ Editando <strong>{carpetaSel.nombre}</strong>: toca el cuadro de la foto para cambiarla y pulsa <strong>Actualizar carpeta</strong>.
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'flex-start' }}>
           <div style={{
